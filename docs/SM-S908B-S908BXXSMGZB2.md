@@ -61,10 +61,9 @@ application. It was selected as an experimental candidate from the same
 Galaxy S22 generation and Samsung Android 12 / 5.10 kernel lineage.
 
 On this SM-S908B GZB2 device, the candidate completed late-load and
-control-channel verification in all five recorded runs. KernelSU Manager
-v3.2.5 (`32525-2`) reports `<LKM> [Jailbreak mode]` on the exact
-`abS908BXXSMGZB2` kernel, with SELinux enforcing. An external Termux check
-returns:
+control-channel verification in all seven recorded full-path runs. KernelSU
+Manager v3.2.5 (`32525-2`) reports `<LKM> [Jailbreak mode]` on the exact
+`abS908BXXSMGZB2` kernel. An external Termux check returns:
 
 ```text
 $ su -c id
@@ -74,6 +73,17 @@ uid=0(root) gid=0(root) groups=0(root) context=u:r:ksu:s0
 This is hardware evidence of empirical compatibility for this tested
 combination. It does not claim that S901B KernelSU artifacts are generally
 interchangeable with S908B firmware or with other kernel builds.
+
+## SELinux runtime note
+
+The IonStack root path reads the runtime SELinux enforcing byte and temporarily
+writes it from `1` to `0` before invoking the usermode helper. The available
+source does not contain a corresponding write that restores this byte to `1`.
+
+KernelSU Manager reported SELinux Enforcing after the completed app flow.
+That final state is recorded as an observation. The available logs and source
+do not establish which component restored Enforcing, so this document does
+not attribute the restoration to IonStack's `root.c`.
 
 ## Device evidence
 
