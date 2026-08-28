@@ -1,0 +1,109 @@
+name: Stage SM-S908B GZB2 PR tree
+
+on:
+  push:
+    branches:
+      - add-sm-s908b-gzb2-validation
+    paths:
+      - S908B-GZB2-pr-tree-v7-upload.zip
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage-sm-s908b-gzb2-pr-tree
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    if: github.repository == 'peppicry/Root-My-Galaxy-Payloads'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out the publication branch
+        uses: actions/checkout@v4
+        with:
+          ref: add-sm-s908b-gzb2-validation
+          fetch-depth: 0
+
+      - name: Verify and unpack the approved v7 public tree
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ARCHIVE='S908B-GZB2-pr-tree-v7-upload.zip'
+          EXPECTED_ARCHIVE_SHA='e6c5c1965b11a25d2ede8461fdf4397d164675641c6f138f5e6c1c208c5c8e7d'
+          EXPECTED_ARCHIVE_BYTES='2413892'
+          BASE_SHA='536a0968077cbc213188ae7895bb688ea21ee779'
+          GOLDEN_REL='artifacts/b0s-S908BXXSMGZB2/cve-2026-43499-app.so'
+          GOLDEN_SHA='19a219a94660a60c06a4c34f9a873b5c9ccacda7129d409ba8486ffe61453235'
+          GOLDEN_BYTES='1757688'
+
+          test -f "$ARCHIVE"
+          test "$(stat -c %s "$ARCHIVE")" = "$EXPECTED_ARCHIVE_BYTES"
+          echo "$EXPECTED_ARCHIVE_SHA  $ARCHIVE" | sha256sum -c -
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+
+          rm -rf /tmp/rmg-s908b-stage
+          mkdir -p /tmp/rmg-s908b-stage
+
+          python3 - <<'PY'
+          from pathlib import Path, PurePosixPath
+          from zipfile import ZipFile
+
+          archive = Path('S908B-GZB2-pr-tree-v7-upload.zip')
+          allowed_roots = {'pr-tree', 'PR_TREE_SHA256SUMS.txt', 'UPLOAD-METADATA.txt'}
+
+          with ZipFile(archive) as zf:
+              for info in zf.infolist():
+                  name = info.filename
+                  path = PurePosixPath(name)
+                  if path.is_absolute() or '..' in path.parts or '\\' in name:
+                      raise SystemExit(f'unsafe archive path: {name!r}')
+                  if not path.parts or path.parts[0] not in allowed_roots:
+                      raise SystemExit(f'unexpected archive path: {name!r}')
+                  mode = (info.external_attr >> 16) & 0o170000
+                  if mode == 0o120000:
+                      raise SystemExit(f'symlink is not allowed: {name!r}')
+              zf.extractall('/tmp/rmg-s908b-stage')
+          PY
+
+          test -d /tmp/rmg-s908b-stage/pr-tree
+          test -f /tmp/rmg-s908b-stage/PR_TREE_SHA256SUMS.txt
+          test -f /tmp/rmg-s908b-stage/UPLOAD-METADATA.txt
+
+          (
+            cd /tmp/rmg-s908b-stage/pr-tree
+            sha256sum -c ../PR_TREE_SHA256SUMS.txt
+          )
+
+          test "$(find /tmp/rmg-s908b-stage/pr-tree -type f | wc -l)" = '72'
+          test "$(find /tmp/rmg-s908b-stage/pr-tree -type l | wc -l)" = '0'
+          test ! -e /tmp/rmg-s908b-stage/pr-tree/support/targets-v3.json
+          test "$(find /tmp/rmg-s908b-stage/pr-tree -type f -iname '*.apk' | wc -l)" = '0'
+          test ! -e /tmp/rmg-s908b-stage/pr-tree/review-only
+
+          test -f "/tmp/rmg-s908b-stage/pr-tree/$GOLDEN_REL"
+          test "$(stat -c %s "/tmp/rmg-s908b-stage/pr-tree/$GOLDEN_REL")" = "$GOLDEN_BYTES"
+          echo "$GOLDEN_SHA  /tmp/rmg-s908b-stage/pr-tree/$GOLDEN_REL" | sha256sum -c -
+
+          test ! -e artifacts/b0s-S908BXXSMGZB2
+          test ! -e docs/SM-S908B-S908BXXSMGZB2.md
+          test ! -e src/targets/b0s-S908BXXSMGZB2
+
+          cp -a /tmp/rmg-s908b-stage/pr-tree/. .
+          rm -f "$ARCHIVE"
+          rm -f .github/workflows/stage-sm-s908b-gzb2-pr-tree.yml
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Add device-tested SM-S908B S908BXXSMGZB2 payload'
+
+          test "$(git diff --name-status "$BASE_SHA" HEAD | wc -l)" = '72'
+          test -z "$(git diff --name-status "$BASE_SHA" HEAD | awk '$1 != "A" {print}')"
+          test -z "$(git diff --name-only "$BASE_SHA" HEAD | grep -E '(^|/)(review-only|support/targets-v3\.json)|\.apk$|S908B-GZB2-pr-tree-v7-upload\.zip|stage-sm-s908b-gzb2-pr-tree\.yml' || true)"
+
+          git push origin HEAD:add-sm-s908b-gzb2-validation
