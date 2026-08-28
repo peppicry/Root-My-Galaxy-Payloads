@@ -61,9 +61,9 @@ application. It was selected as an experimental candidate from the same
 Galaxy S22 generation and Samsung Android 12 / 5.10 kernel lineage.
 
 On this SM-S908B GZB2 device, the candidate completed late-load and
-control-channel verification in all seven recorded full-path runs. KernelSU
-Manager v3.2.5 (`32525-2`) reports `<LKM> [Jailbreak mode]` on the exact
-`abS908BXXSMGZB2` kernel. An external Termux check returns:
+control-channel verification in every full-path run currently documented
+above. KernelSU Manager v3.2.5 (`32525-2`) reports `<LKM> [Jailbreak mode]` on
+the exact `abS908BXXSMGZB2` kernel. An external Termux check returns:
 
 ```text
 $ su -c id
