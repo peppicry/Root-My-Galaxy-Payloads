@@ -7,6 +7,7 @@ on:
     paths:
       - "artifacts/b0s-S908BXXSMGZB2/**"
       - "src/targets/b0s-S908BXXSMGZB2/**"
+      - "kernelsu/ksud-r0s-S901BXXSNGZD7-kdp"
       - ".github/workflows/build-sm-s908b-preview-apk.yml"
   workflow_dispatch:
 
@@ -38,7 +39,7 @@ jobs:
           set -euo pipefail
 
           EXPLOIT_URL="https://raw.githubusercontent.com/peppicry/Root-My-Galaxy-Payloads/${GITHUB_SHA}/artifacts/b0s-S908BXXSMGZB2/cve-2026-43499-app.so"
-          KSU_URL="https://raw.githubusercontent.com/enej-git/Root-My-Galaxy-Payloads/40fcda771d637f1ae5ddae7ebe3ba8264f347395/kernelsu/ksud-r0s-S901BXXSNGZD7-kdp"
+          KSU_URL="https://raw.githubusercontent.com/peppicry/Root-My-Galaxy-Payloads/${GITHUB_SHA}/kernelsu/ksud-r0s-S901BXXSNGZD7-kdp"
 
           curl -fsSL "$EXPLOIT_URL" -o /tmp/s908b-exploit.so
           curl -fsSL "$KSU_URL" -o /tmp/s901b-ksud
@@ -83,7 +84,7 @@ jobs:
                       size = 1757688L,
                   ),
                   kernelSu = RemoteArtifact(
-                      url = "https://raw.githubusercontent.com/enej-git/Root-My-Galaxy-Payloads/40fcda771d637f1ae5ddae7ebe3ba8264f347395/kernelsu/ksud-r0s-S901BXXSNGZD7-kdp",
+                      url = "https://raw.githubusercontent.com/peppicry/Root-My-Galaxy-Payloads/{payload_sha}/kernelsu/ksud-r0s-S901BXXSNGZD7-kdp",
                       size = 4621280L,
                   ),
               ),
@@ -165,7 +166,8 @@ jobs:
 
           KernelSU candidate:
           S901BXXSNGZD7 ksud-r0s-S901BXXSNGZD7-kdp
-          Source snapshot: enej-git/Root-My-Galaxy-Payloads@40fcda771d637f1ae5ddae7ebe3ba8264f347395
+          Bundled in this PR from:
+          enej-git/Root-My-Galaxy-Payloads@40fcda771d637f1ae5ddae7ebe3ba8264f347395 (PR #138)
           SHA-256: fc0097be827dab2078ba23e7af223905cc8ab38c763a602982071439ae7ed962
 
           The S901B KernelSU candidate has been observed working on the hardware-validated

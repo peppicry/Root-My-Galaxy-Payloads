@@ -1,11 +1,8 @@
-# This workflow verifies only the deterministic SM-S908B GZB2 payload and its
-# embedded 32-bit exp32 stage.
+# Rebuild the deterministic SM-S908B GZB2 payload and check the exact
+# S901B GZD7 KernelSU files used by the S908B tests.
 #
-# It does not verify:
-# - the Root My Galaxy APK;
-# - the Root My Galaxy native bootstrap helper;
-# - the S901B KernelSU late-load candidate;
-# - complete runtime integration on hardware.
+# The KernelSU files are hash-checked here, not rebuilt. Runtime validation is
+# covered by the device records in docs/SM-S908B-S908BXXSMGZB2.md.
 
 name: Verify SM-S908B GZB2 payload
 
@@ -14,11 +11,15 @@ on:
     paths:
       - "src/targets/b0s-S908BXXSMGZB2/**"
       - "artifacts/b0s-S908BXXSMGZB2/**"
+      - "kernelsu/ksud-r0s-S901BXXSNGZD7-kdp"
+      - "kernelsu/android12-5.10_kernelsu-r0s-S901BXXSNGZD7-kdp.ko"
       - ".github/workflows/verify-sm-s908b-gzb2.yml"
   pull_request:
     paths:
       - "src/targets/b0s-S908BXXSMGZB2/**"
       - "artifacts/b0s-S908BXXSMGZB2/**"
+      - "kernelsu/ksud-r0s-S901BXXSNGZD7-kdp"
+      - "kernelsu/android12-5.10_kernelsu-r0s-S901BXXSNGZD7-kdp.ko"
       - ".github/workflows/verify-sm-s908b-gzb2.yml"
   workflow_dispatch:
 
@@ -32,6 +33,24 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check bundled KernelSU files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          KSUD="kernelsu/ksud-r0s-S901BXXSNGZD7-kdp"
+          KO="kernelsu/android12-5.10_kernelsu-r0s-S901BXXSNGZD7-kdp.ko"
+
+          test "$(stat -c%s "$KSUD")" = "4621280"
+          test "$(stat -c%s "$KO")" = "323168"
+
+          printf '%s  %s\n' \
+            'fc0097be827dab2078ba23e7af223905cc8ab38c763a602982071439ae7ed962' \
+            "$KSUD" | sha256sum -c -
+          printf '%s  %s\n' \
+            '47a66801c8a1e94a757924fd30099065cea62edc80e14b83b0879cca22fef568' \
+            "$KO" | sha256sum -c -
 
       - uses: actions/setup-java@v4
         with:

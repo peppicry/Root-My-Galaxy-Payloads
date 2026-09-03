@@ -55,10 +55,21 @@ then completed KernelSU control-channel verification.
 ## KernelSU
 
 The late-load package used for these runs was **not built specifically for
-SM-S908B GZB2**. The validation build reused the existing
-`S901B / S901BXXSNGZD7 KDP` KernelSU candidate already integrated in the lab
-application. It was selected as an experimental candidate from the same
-Galaxy S22 generation and Samsung Android 12 / 5.10 kernel lineage.
+SM-S908B GZB2**. It is the S901B / `S901BXXSNGZD7` KDP pair from
+`enej-git/Root-My-Galaxy-Payloads` PR #138, commit
+`40fcda771d637f1ae5ddae7ebe3ba8264f347395`. The exact files are included
+byte-for-byte in this PR so the S908B integration does not depend on another
+open branch:
+
+- `kernelsu/ksud-r0s-S901BXXSNGZD7-kdp`
+- `kernelsu/android12-5.10_kernelsu-r0s-S901BXXSNGZD7-kdp.ko`
+
+Their original identities are:
+
+| File | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `ksud-r0s-S901BXXSNGZD7-kdp` | 4621280 | `fc0097be827dab2078ba23e7af223905cc8ab38c763a602982071439ae7ed962` |
+| `android12-5.10_kernelsu-r0s-S901BXXSNGZD7-kdp.ko` | 323168 | `47a66801c8a1e94a757924fd30099065cea62edc80e14b83b0879cca22fef568` |
 
 On this SM-S908B GZB2 device, the candidate completed late-load and
 control-channel verification in every full-path run currently documented
