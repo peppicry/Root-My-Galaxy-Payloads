@@ -37,6 +37,22 @@ jobs:
           test "$(cat .github/finalize-sm-s908b-bundle.part* | wc -c)" = "28388"
           test "$(cat .github/finalize-sm-s908b-bundle.part* | sha256sum | awk '{print $1}')" = "$BUNDLE_SHA"
           cat .github/finalize-sm-s908b-bundle.part* | base64 -d | tar -xz -C /tmp
-          rm -f .github/finalize-sm-s908b-bundle.ready
+
+          # Earlier interrupted publication attempts had already changed a few
+          # target files. Reset only those files to the reviewed PR #272 state
+          # so the finalizer applies its exact, fail-closed patch once.
+          git checkout 5f4b265846a5285ba5c50615359e9833b90dd6dd -- \
+            src/targets/b0s-S908BXXSMGZB2/ionstack-s908b-gzb2/src/main.c \
+            artifacts/b0s-S908BXXSMGZB2/README.md \
+            artifacts/b0s-S908BXXSMGZB2/cve-2026-43499-app.so \
+            support/targets-v3.json
+
+          # Remove one-time recovery workflows from the interrupted attempt.
+          rm -f \
+            .github/finalize-sm-s908b-bundle.ready \
+            .github/workflows/publish-sm-s908b-validation-logs.yml \
+            .github/workflows/rebuild-sm-s908b-cleanup-artifact.yml \
+            .github/workflows/recover-sm-s908b-validation-logs.yml
+
           chmod +x /tmp/finalize-bundle/finalize.sh
           /tmp/finalize-bundle/finalize.sh
