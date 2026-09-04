@@ -1,0 +1,109 @@
+name: Recover SM-S908B validation logs
+
+on:
+  push:
+    branches:
+      - port-sm-s908b-s908bxxsmgzb2
+    paths:
+      - ".github/workflows/recover-sm-s908b-validation-logs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: port-sm-s908b-s908bxxsmgzb2
+          fetch-depth: 0
+
+      - name: Restore raw hardware logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, re, tarfile
+          from pathlib import Path
+
+          src = Path('.github/workflows/publish-sm-s908b-validation-logs.yml').read_text()
+          match = re.search(r'(?m)^\s*(H4sI[A-Za-z0-9+/=]+)\s*$', src)
+          if not match:
+              raise SystemExit('embedded validation archive not found')
+          encoded = match.group(1)
+          print('base64 bytes:', len(encoded))
+          print('base64 sha256:', hashlib.sha256(encoded.encode()).hexdigest())
+          if len(encoded) != 19404:
+              raise SystemExit('embedded base64 length mismatch')
+          if hashlib.sha256(encoded.encode()).hexdigest() != 'a63918f3536f0a497551d89e156ec4b0f93bd6eb3031488c3a3d662a4e2c6386':
+              raise SystemExit('embedded base64 sha256 mismatch')
+
+          archive = base64.b64decode(encoded, validate=True)
+          if hashlib.sha256(archive).hexdigest() != '86128882d4612cf1a7a29b00a1c4c8d77910c87d5d3492a9e0ae24109d20974a':
+              raise SystemExit('archive sha256 mismatch')
+          tar_path = Path('/tmp/s908b-validation.tar.gz')
+          tar_path.write_bytes(archive)
+          dest = Path('docs/validation/SM-S908B-S908BXXSMGZB2-2026-09-04')
+          dest.mkdir(parents=True, exist_ok=True)
+          with tarfile.open(tar_path, 'r:gz') as tar:
+              tar.extractall(dest)
+          PY
+
+          DEST="docs/validation/SM-S908B-S908BXXSMGZB2-2026-09-04"
+          (cd "$DEST" && sha256sum *.log > SHA256SUMS.txt)
+
+          cat > "$DEST/README.md" <<'EOF'
+          # SM-S908B / S908BXXSMGZB2 validation — 2026-09-04
+
+          Follow-up hardware validation for the rebuilt PR #272 payload after adding retry-path cleanup (`reset_pipe_attempt()` before the CFI-fail `return 70`).
+
+          Test setup:
+
+          - physical Galaxy S22 Ultra SM-S908B / firmware S908BXXSMGZB2
+          - Android 16 / kernel 5.10.237
+          - official Root My Galaxy execution path (app source `23adf39fcd4f1be4e73184ee960a6d5399baf147`)
+          - Shizuku transport
+          - reboot between every run
+          - same S901B GZD7 KDP KernelSU candidate already used by PR #272
+
+          Result: **7/7 full-path successes**. No kernel panic was observed.
+
+          | Run | Supervisor success | Physical slot | Log |
+          | ---: | ---: | ---: | --- |
+          | 1 | 7/24 | 61 | `run-01-attempt-07.log` |
+          | 2 | 7/24 | 24 | `run-02-attempt-07.log` |
+          | 3 | 1/24 | 30 | `run-03-attempt-01.log` |
+          | 4 | 2/24 | 0 | `run-04-attempt-02.log` |
+          | 5 | 1/24 | 59 | `run-05-attempt-01.log` |
+          | 6 | 1/24 | 51 | `run-06-attempt-01.log` |
+          | 7 | 5/24 | 50 | `run-07-attempt-05.log` |
+
+          Across the seven boots, the new cleanup path was exercised 17 times while retrying after `PHYS_SLOT_NO_MATCH`. Every run eventually reached PhysRW, `uid=2000 -> 0`, KernelSU late-load and final KSU control verification.
+
+          Several runs also recovered from intermediate pipe/PhysRW misses by preparing another pipe page and continuing in the same supervisor attempt.
+
+          No `F_SETPIPE_SZ: Operation not permitted` failure was seen in this set. The earlier EPERM failure was **not deliberately reproduced here**, so these logs are hardware regression/stability evidence for the rebuilt binary, not a claim that the exact earlier failure was reproduced and fixed experimentally.
+
+          Payload under test:
+
+          - SHA-256: `d2b52dc52a69571a145a64f0f57ae53884383a996661066ca84b52a45eb691bf`
+          - size: `1,757,752` bytes
+          - embedded ARM32 SHA-256: `023190461719fc4cc11a7d114ff8da5132f1afa0eba32c907053e83682914152`
+          EOF
+
+      - name: Commit validation records and remove one-shot helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f \
+            .github/workflows/recover-sm-s908b-validation-logs.yml \
+            .github/workflows/publish-sm-s908b-validation-logs.yml \
+            .github/workflows/rebuild-sm-s908b-cleanup-artifact.yml
+          git add docs/validation/SM-S908B-S908BXXSMGZB2-2026-09-04
+          git diff --cached --check
+          git commit -m "docs(s908b): add 7-run hardware validation logs"
+          git push origin HEAD:port-sm-s908b-s908bxxsmgzb2
