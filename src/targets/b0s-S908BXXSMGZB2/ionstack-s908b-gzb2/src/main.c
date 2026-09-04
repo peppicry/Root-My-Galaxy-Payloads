@@ -218,6 +218,8 @@ int run_exploit(int argc, char **argv) {
                last_leaked_mm, page_base, last_skb_reclaim_sent,
                last_skb_reclaim_want, last_skb_send_size);
     rmg_log_reclaim_lifetime("cfi-fail-pre-return");
+    pr_info("[cleanup] resetting pipe attempt before retry\n");
+    reset_pipe_attempt();
     return 70;
   }
 
