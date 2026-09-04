@@ -33,9 +33,10 @@ jobs:
           set -euo pipefail
           rm -rf /tmp/finalize-bundle
           mkdir -p /tmp/finalize-bundle
-          test "$(cat .github/finalize-sm-s908b-bundle.part* | wc -c)" = "28388"
-          echo "BUNDLE_SHA=$(cat .github/finalize-sm-s908b-bundle.part* | sha256sum | awk '{print $1}')"
-          cat .github/finalize-sm-s908b-bundle.part* | base64 -d | tar -xz -C /tmp
+          BUNDLE=".github/finalize-sm-s908b-v3.chunk*"
+          test "$(cat $BUNDLE | wc -c)" = "28388"
+          test "$(cat $BUNDLE | sha256sum | awk '{print $1}')" = "e4787ba3c4499cce522492aed35156c565100469f5d3fd19cc799a7cba7211ac"
+          cat $BUNDLE | base64 -d | tar -xz -C /tmp
 
           # Reset the target files to the reviewed PR #272 state. Some earlier
           # one-time recovery runs had already touched a subset of these files.
