@@ -1,31 +1,18 @@
 # SM-S908B / S908BXXSMGZB2 artifact
 
-The file `cve-2026-43499-app.so` is the exact native payload used by the
-hardware-validation build.
+`cve-2026-43499-app.so` is the current hardware-validated S908B/GZB2 payload for PR #272.
 
-| File | Bytes | SHA-256 |
+| Revision | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `cve-2026-43499-app.so` | 1757688 | `19a219a94660a60c06a4c34f9a873b5c9ccacda7129d409ba8486ffe61453235` |
+| current | 1757752 | `d2b52dc52a69571a145a64f0f57ae53884383a996661066ca84b52a45eb691bf` |
+| original hardware reference | 1757688 | `19a219a94660a60c06a4c34f9a873b5c9ccacda7129d409ba8486ffe61453235` |
 
-It was extracted byte-for-byte from the validation APK. Private CI rebuilt the
-corresponding IonStack source state and required byte-for-byte identity with
-this hardware-tested payload.
+The current binary adds one lifecycle/cleanup change: `reset_pipe_attempt()` is called before the CFI-fail retry `return 70`. The S908B offsets, physical KASLR scan, embedded ARM32 stage, CFI/PhysRW path, root path and KernelSU candidate are unchanged.
 
-The size is intentional. This is the instrumented validation binary, not a
-stripped or repadded 104,128-byte release substitute. It retains the diagnostic
-and retry behavior present during the successful device runs. Repacking it
-would create a different artifact and would break the hardware-proven hash.
+The embedded ARM32 stage is still byte-identical to the original validation build:
 
-The binary also retains the embedded ARM32 stage's historical diagnostic
-banner containing `b0q`. That text is inherited provenance, not the selected
-device identity; the validated target label is `S908BXXSMGZB2`. The disclosure
-is expanded in `src/targets/b0s-S908BXXSMGZB2/README.md`.
+`023190461719fc4cc11a7d114ff8da5132f1afa0eba32c907053e83682914152`
 
-The public provenance copy is available at
-`src/targets/b0s-S908BXXSMGZB2/ionstack-s908b-gzb2/`. It preserves all build
-inputs and omits only the non-build `MEMORY.md` developer notebook.
+This rebuilt payload was tested again on physical SM-S908B/GZB2 hardware through the official Root My Galaxy execution path with a reboot between each run: **7/7 full-path successes**, with no kernel panic observed. The raw logs and run notes live under `docs/validation/SM-S908B-S908BXXSMGZB2-2026-09-04/`.
 
-The KernelSU package used during validation is intentionally not republished
-here as an S908B-exact artifact. It originated from the existing S901B GZD7
-KDP candidate; its empirical compatibility on this device is documented in
-`docs/SM-S908B-S908BXXSMGZB2.md`.
+The previous payload/hash is kept above as the original hardware reference rather than being silently replaced.
