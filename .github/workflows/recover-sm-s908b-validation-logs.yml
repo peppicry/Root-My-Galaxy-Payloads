@@ -32,13 +32,15 @@ jobs:
           match = re.search(r'(?m)^\s*(H4sI[A-Za-z0-9+/=]+)\s*$', src)
           if not match:
               raise SystemExit('embedded validation archive not found')
-          encoded = match.group(1)
-          print('base64 bytes:', len(encoded))
+          raw = match.group(1)
+          encoded = raw + ('=' * ((4 - len(raw) % 4) % 4))
+          print('raw base64 bytes:', len(raw))
+          print('padded base64 bytes:', len(encoded))
           print('base64 sha256:', hashlib.sha256(encoded.encode()).hexdigest())
           if len(encoded) != 19404:
-              raise SystemExit('embedded base64 length mismatch')
+              raise SystemExit('embedded base64 length mismatch after padding')
           if hashlib.sha256(encoded.encode()).hexdigest() != 'a63918f3536f0a497551d89e156ec4b0f93bd6eb3031488c3a3d662a4e2c6386':
-              raise SystemExit('embedded base64 sha256 mismatch')
+              raise SystemExit('embedded base64 sha256 mismatch after padding')
 
           archive = base64.b64decode(encoded, validate=True)
           if hashlib.sha256(archive).hexdigest() != '86128882d4612cf1a7a29b00a1c4c8d77910c87d5d3492a9e0ae24109d20974a':
