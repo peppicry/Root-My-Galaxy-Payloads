@@ -1,0 +1,38 @@
+name: Finalize SM-S908B cleanup validation
+
+on:
+  push:
+    branches:
+      - port-sm-s908b-s908bxxsmgzb2
+    paths:
+      - ".github/workflows/finalize-sm-s908b-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r28c
+
+      - name: Publish corrected payload and validation records
+        shell: bash
+        env:
+          NDK: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/finalize-bundle
+          mkdir -p /tmp/finalize-bundle
+          cat .github/finalize-sm-s908b-bundle.part* | base64 -d | tar -xz -C /tmp
+          chmod +x /tmp/finalize-bundle/finalize.sh
+          /tmp/finalize-bundle/finalize.sh
