@@ -73,19 +73,25 @@ jobs:
           EXP32="$SOURCE_DIR/build/S908BXXSMGZB2/bin/cve-exp32"
           PUBLISHED_PAYLOAD="artifacts/b0s-S908BXXSMGZB2/cve-2026-43499-app.so"
 
-          EXPECTED_PAYLOAD_SHA="19a219a94660a60c06a4c34f9a873b5c9ccacda7129d409ba8486ffe61453235"
+          EXPECTED_PAYLOAD_SHA="d2b52dc52a69571a145a64f0f57ae53884383a996661066ca84b52a45eb691bf"
           EXPECTED_EXP32_SHA="023190461719fc4cc11a7d114ff8da5132f1afa0eba32c907053e83682914152"
 
-          make -C "$SOURCE_DIR" \
+          env -u CC -u NDK_ROOT -u ANDROID_NDK_ROOT -u NDK_TOOLCHAIN \
             ANDROID_NDK_HOME="$ANDROID_NDK_HOME" \
-            PROJECT=S908BXXSMGZB2 API=35 API32=28 clean
-
-          make -C "$SOURCE_DIR" \
-            ANDROID_NDK_HOME="$ANDROID_NDK_HOME" \
-            PROJECT=S908BXXSMGZB2 API=35 API32=28 preload
+            make -C "$SOURCE_DIR" \
+              PROJECT=S908BXXSMGZB2 \
+              API=35 \
+              API32=28 \
+              NDK_ROOT="$ANDROID_NDK_HOME" \
+              NDK_TOOLCHAIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64" \
+              HOST_CC32=__force_ndk_arm32__ \
+              USE_BUILDROOT= \
+              clean preload
 
           printf '%s  %s\n' "$EXPECTED_PAYLOAD_SHA" "$PAYLOAD" | sha256sum -c -
           printf '%s  %s\n' "$EXPECTED_EXP32_SHA" "$EXP32" | sha256sum -c -
+          test "$(stat -c%s "$PAYLOAD")" = "1757752"
+          strings "$PAYLOAD" | grep -F '[cleanup] resetting pipe attempt before retry'
 
           cmp --silent "$PAYLOAD" "$PUBLISHED_PAYLOAD"
 
