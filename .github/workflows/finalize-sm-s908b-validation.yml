@@ -48,33 +48,39 @@ jobs:
             docs/SM-S908B-S908BXXSMGZB2.md \
             support/targets-v3.json
 
-          # The finalizer also prepares the two permanent workflow updates so
-          # it can validate their contents. Restore those files before commit:
-          # GitHub's workflow token may publish normal repository files, while
-          # the connected GitHub app will commit workflow files separately.
+          # Prepare the normal repository changes in a separate commit. The
+          # connected GitHub app will update workflow files afterwards.
           python3 - <<'PY'
           from pathlib import Path
 
           path = Path('/tmp/finalize-bundle/finalize.sh')
           text = path.read_text()
 
-          old_rm = 'rm -f .github/workflows/finalize-sm-s908b-validation.yml .github/finalize-sm-s908b-bundle.part*\n'
+          old_rm = (
+              'rm -f .github/workflows/finalize-sm-s908b-validation.yml '
+              '.github/finalize-sm-s908b-bundle.part*\n'
+          )
           if text.count(old_rm) != 1:
               raise SystemExit(f'finalizer rm anchor count={text.count(old_rm)}')
-          text = text.replace(old_rm, ': # temporary publisher files are removed after the normal-file commit\n', 1)
+          text = text.replace(
+              old_rm,
+              ': # temporary publisher files are removed after this commit\n',
+              1,
+          )
 
           old_add = 'git add -A\n'
-          new_add = '''git restore --source=HEAD -- \\
-  .github/workflows/verify-sm-s908b-gzb2.yml \\
-  .github/workflows/build-sm-s908b-preview-apk.yml
-
-git add \\
-  artifacts/b0s-S908BXXSMGZB2 \\
-  docs/SM-S908B-S908BXXSMGZB2.md \\
-  docs/validation/SM-S908B-S908BXXSMGZB2/2026-09-04-official-app \\
-  src/targets/b0s-S908BXXSMGZB2 \\
-  support/targets-v3.json
-'''
+          new_add = (
+              'git restore --source=HEAD -- \\\n'
+              '  .github/workflows/verify-sm-s908b-gzb2.yml \\\n'
+              '  .github/workflows/build-sm-s908b-preview-apk.yml\n'
+              '\n'
+              'git add \\\n'
+              '  artifacts/b0s-S908BXXSMGZB2 \\\n'
+              '  docs/SM-S908B-S908BXXSMGZB2.md \\\n'
+              '  docs/validation/SM-S908B-S908BXXSMGZB2/2026-09-04-official-app \\\n'
+              '  src/targets/b0s-S908BXXSMGZB2 \\\n'
+              '  support/targets-v3.json\n'
+          )
           if text.count(old_add) != 1:
               raise SystemExit(f'finalizer git-add anchor count={text.count(old_add)}')
           text = text.replace(old_add, new_add, 1)
