@@ -11,14 +11,30 @@ This directory carries the source provenance for the hardware-tested
 - Reproduction toolchain: Android NDK r28c (`28.2.13676358`)
 - Main payload API: 35
 - Embedded ARM32 API: 28
-- Payload SHA-256: `19a219a94660a60c06a4c34f9a873b5c9ccacda7129d409ba8486ffe61453235`
+- Current payload SHA-256: `d2b52dc52a69571a145a64f0f57ae53884383a996661066ca84b52a45eb691bf`
+- Previous hardware-reference SHA-256: `19a219a94660a60c06a4c34f9a873b5c9ccacda7129d409ba8486ffe61453235`
 - Embedded ARM32 stage SHA-256: `023190461719fc4cc11a7d114ff8da5132f1afa0eba32c907053e83682914152`
 
 The nested `ionstack-s908b-gzb2/` tree preserves the build-relevant source
-state that reproduced the hardware-tested payload byte-for-byte in private CI.
-It intentionally retains the diagnostic and retry instrumentation present in
-the validated binary; this contribution does not substitute a cleaned,
-stripped, repadded, or merely behaviorally equivalent rebuild.
+state for the current published payload. It intentionally retains the diagnostic
+and retry instrumentation present during hardware validation; this contribution
+does not substitute a stripped, repadded, or merely behaviorally equivalent
+build.
+
+## Current cleanup-hardened revision
+
+The current published payload adds one lifecycle fix to the previously tested
+source state: `reset_pipe_attempt()` is called before the CFI retry path returns
+status 70 to the external supervisor. This prevents pipe-attempt state from
+surviving into the next independent child.
+
+The rebuilt payload was then tested through the official Root My Galaxy
+execution path in seven reboot-separated hardware runs. All seven completed
+bootstrap root and KernelSU verification. The raw logs are under
+`docs/validation/SM-S908B-S908BXXSMGZB2/2026-09-04-official-app/`.
+
+No S908B offset, physical-KASLR rule, ARM32 stage, CFI primitive, PhysRW logic,
+root path, or KernelSU candidate was changed for this revision.
 
 ## Snapshot fidelity and inherited metadata
 
@@ -33,14 +49,13 @@ legacy S908W fingerprint string.
 
 The embedded ARM32 stage also retains the historical diagnostic banner
 `CVE-2026-43499 32-bit ARM stage (b0q)`. That string is a provenance/debug
-label, not a target-selection mechanism. It is present in the immutable
-hardware-tested binary and is documented rather than rewritten, because
-rewriting it would produce a different payload hash.
+label, not a target-selection mechanism. It is present in both tested payload revisions and is documented rather than
+rewritten, because rewriting it would produce another payload identity.
 
-Those inherited metadata strings are documented rather than edited here so the
-published source remains the same build state that was already reproduced and
-validated. A future cleanup should be a separate change with a fresh rebuild
-and validation, not a silent rewrite of this reference snapshot.
+Those inherited metadata strings remain documented rather than silently
+rewritten. The lifecycle change above is recorded as a separate rebuilt and
+hardware-validated payload revision, while the previous reference identity is
+kept in this README and in the validation document.
 
 The original `.gitignore` from the pinned base commit is retained. The only
 file omitted from the CI source snapshot is `MEMORY.md`, a non-build developer
@@ -94,10 +109,10 @@ src/targets/b0s-S908BXXSMGZB2/ionstack-s908b-gzb2/
   build/S908BXXSMGZB2/bin/cve-exp32
 ```
 
-The rebuilt payload must have SHA-256:
+The rebuilt current payload must have SHA-256:
 
 ```text
-19a219a94660a60c06a4c34f9a873b5c9ccacda7129d409ba8486ffe61453235
+d2b52dc52a69571a145a64f0f57ae53884383a996661066ca84b52a45eb691bf
 ```
 
 The embedded `cve-exp32` stage must have SHA-256:
