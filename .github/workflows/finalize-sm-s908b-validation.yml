@@ -38,21 +38,48 @@ jobs:
           test "$(cat .github/finalize-sm-s908b-bundle.part* | sha256sum | awk '{print $1}')" = "$BUNDLE_SHA"
           cat .github/finalize-sm-s908b-bundle.part* | base64 -d | tar -xz -C /tmp
 
-          # Earlier interrupted publication attempts had already changed a few
-          # target files. Reset only those files to the reviewed PR #272 state
-          # so the finalizer applies its exact, fail-closed patch once.
+          # Reset the target files to the reviewed PR #272 state. Some earlier
+          # one-time recovery runs had already touched a subset of these files.
           git checkout 5f4b265846a5285ba5c50615359e9833b90dd6dd -- \
             src/targets/b0s-S908BXXSMGZB2/ionstack-s908b-gzb2/src/main.c \
+            src/targets/b0s-S908BXXSMGZB2/README.md \
             artifacts/b0s-S908BXXSMGZB2/README.md \
             artifacts/b0s-S908BXXSMGZB2/cve-2026-43499-app.so \
+            docs/SM-S908B-S908BXXSMGZB2.md \
             support/targets-v3.json
 
-          # Remove one-time recovery workflows from the interrupted attempt.
-          rm -f \
-            .github/finalize-sm-s908b-bundle.ready \
-            .github/workflows/publish-sm-s908b-validation-logs.yml \
-            .github/workflows/rebuild-sm-s908b-cleanup-artifact.yml \
-            .github/workflows/recover-sm-s908b-validation-logs.yml
+          # The finalizer also prepares the two permanent workflow updates so
+          # it can validate their contents. Restore those files before commit:
+          # GitHub's workflow token may publish normal repository files, while
+          # the connected GitHub app will commit workflow files separately.
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('/tmp/finalize-bundle/finalize.sh')
+          text = path.read_text()
+
+          old_rm = 'rm -f .github/workflows/finalize-sm-s908b-validation.yml .github/finalize-sm-s908b-bundle.part*\n'
+          if text.count(old_rm) != 1:
+              raise SystemExit(f'finalizer rm anchor count={text.count(old_rm)}')
+          text = text.replace(old_rm, ': # temporary publisher files are removed after the normal-file commit\n', 1)
+
+          old_add = 'git add -A\n'
+          new_add = '''git restore --source=HEAD -- \\
+  .github/workflows/verify-sm-s908b-gzb2.yml \\
+  .github/workflows/build-sm-s908b-preview-apk.yml
+
+git add \\
+  artifacts/b0s-S908BXXSMGZB2 \\
+  docs/SM-S908B-S908BXXSMGZB2.md \\
+  docs/validation/SM-S908B-S908BXXSMGZB2/2026-09-04-official-app \\
+  src/targets/b0s-S908BXXSMGZB2 \\
+  support/targets-v3.json
+'''
+          if text.count(old_add) != 1:
+              raise SystemExit(f'finalizer git-add anchor count={text.count(old_add)}')
+          text = text.replace(old_add, new_add, 1)
+          path.write_text(text)
+          PY
 
           chmod +x /tmp/finalize-bundle/finalize.sh
           /tmp/finalize-bundle/finalize.sh
