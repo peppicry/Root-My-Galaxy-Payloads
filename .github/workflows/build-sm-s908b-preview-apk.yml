@@ -44,11 +44,11 @@ jobs:
           curl -fsSL "$EXPLOIT_URL" -o /tmp/s908b-exploit.so
           curl -fsSL "$KSU_URL" -o /tmp/s901b-ksud
 
-          test "$(stat -c%s /tmp/s908b-exploit.so)" = "1757688"
+          test "$(stat -c%s /tmp/s908b-exploit.so)" = "1757752"
           test "$(stat -c%s /tmp/s901b-ksud)" = "4621280"
 
           printf '%s  %s\n' \
-            '19a219a94660a60c06a4c34f9a873b5c9ccacda7129d409ba8486ffe61453235' \
+            'd2b52dc52a69571a145a64f0f57ae53884383a996661066ca84b52a45eb691bf' \
             '/tmp/s908b-exploit.so' | sha256sum -c -
           printf '%s  %s\n' \
             'fc0097be827dab2078ba23e7af223905cc8ab38c763a602982071439ae7ed962' \
@@ -81,7 +81,7 @@ jobs:
                   kernelVersions = setOf("5.10.237"),
                   exploit = RemoteArtifact(
                       url = "https://raw.githubusercontent.com/peppicry/Root-My-Galaxy-Payloads/{payload_sha}/artifacts/b0s-S908BXXSMGZB2/cve-2026-43499-app.so",
-                      size = 1757688L,
+                      size = 1757752L,
                   ),
                   kernelSu = RemoteArtifact(
                       url = "https://raw.githubusercontent.com/peppicry/Root-My-Galaxy-Payloads/{payload_sha}/kernelsu/ksud-r0s-S901BXXSNGZD7-kdp",
@@ -128,7 +128,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: "platform-tools platforms;android-35 cmake;3.22.1"
+          packages: "platform-tools platforms;android-37.0 build-tools;37.0.0 cmake;3.22.1"
           accept-android-sdk-licenses: true
 
       - name: Set up NDK r28
@@ -162,7 +162,7 @@ jobs:
 
           Exploit source/artifact:
           peppicry/Root-My-Galaxy-Payloads@${GITHUB_SHA}
-          SHA-256: 19a219a94660a60c06a4c34f9a873b5c9ccacda7129d409ba8486ffe61453235
+          SHA-256: d2b52dc52a69571a145a64f0f57ae53884383a996661066ca84b52a45eb691bf
 
           KernelSU candidate:
           S901BXXSNGZD7 ksud-r0s-S901BXXSNGZD7-kdp
