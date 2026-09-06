@@ -152,12 +152,40 @@ activity, count = pattern.subn(lambda _m: replacement, activity, count=1)
 if count != 1:
     raise SystemExit(f"compact log replacement count={count}")
 
-# Make the panel subtitle explicit: the screen is a summary; raw history/export stays intact.
 activity = activity.replace(
     'text = "Root My Galaxy • console da execução",',
     'text = "Resumo da execução • log técnico completo continua salvo",',
     1,
 )
-
 activity_path.write_text(activity)
+
+# Distinct package/version/name so this v4 can coexist with the earlier lab APKs.
+gradle = app / "app/build.gradle.kts"
+gradle_text = gradle.read_text()
+gradle_text = gradle_text.replace(
+    'applicationId = "dev.busung.s25uroot.s908bofflinev2"',
+    'applicationId = "dev.busung.s25uroot.s908bofflinev4"',
+    1,
+)
+gradle_text = gradle_text.replace(
+    'versionName = "0.2.65-s908b-offline-clean-v2"',
+    'versionName = "0.2.65-s908b-offline-clean-v4"',
+    1,
+)
+gradle.write_text(gradle_text)
+
+labels = 0
+for strings in (app / "app/src/main/res").glob("values*/strings.xml"):
+    text = strings.read_text()
+    patched, count = re.subn(
+        r'(<string name="app_name">).*?(</string>)',
+        r'\1Root My Galaxy — S908B Offline Lab v4\2',
+        text,
+        count=1,
+    )
+    if count:
+        strings.write_text(patched)
+        labels += 1
+
 print("compact_log_ui=enabled")
+print(f"labels_patched_v4={labels}")
