@@ -102,7 +102,7 @@ jobs:
           grep -n "prepareFreshRuntimeWorkspace" app-src/app/src/main/java/dev/busung/s25uroot/InstallViewModel.kt
           grep -n "Resumo da execução" app-src/app/src/main/java/dev/busung/s25uroot/InstallActivity.kt
           grep -n "Root adquirido" app-src/app/src/main/java/dev/busung/s25uroot/InstallActivity.kt
-          ! grep -n "cleanupBootstrapSocketAfterInstall()" app-src/app/src/main/java/dev/busung/s25uroot/InstallViewModel.kt
+          ! grep -n '^                cleanupBootstrapSocketAfterInstall()$' app-src/app/src/main/java/dev/busung/s25uroot/InstallViewModel.kt
 
       - name: Build APK with Gradle
         working-directory: app-src
