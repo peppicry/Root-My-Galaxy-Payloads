@@ -65,6 +65,20 @@ jobs:
             'fc0097be827dab2078ba23e7af223905cc8ab38c763a602982071439ae7ed962' \
             'app-src/app/src/main/assets/s908b/ksud-r0s-S901BXXSNGZD7-kdp' | sha256sum -c -
 
+      - name: Build root helper with self-unlink socket lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 payloads/tools/patch_s908b_helper_self_unlink_v4.py payloads
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
+          make -C payloads TARGET=b0s-S908BXXSMGZB2 \
+            build/b0s-S908BXXSMGZB2/cve-2026-43499-root
+          HELPER="payloads/build/b0s-S908BXXSMGZB2/cve-2026-43499-root"
+          test -s "$HELPER"
+          mkdir -p app-src/app/src/main/jniLibs/arm64-v8a
+          cp "$HELPER" app-src/app/src/main/jniLibs/arm64-v8a/libcve43499root.so
+          sha256sum "$HELPER"
+
       - name: Apply offline cleanup, socket lifecycle and compact log patches
         shell: bash
         run: |
@@ -82,11 +96,13 @@ jobs:
           PY
           python3 payloads/tools/patch_s908b_offline_log_cleanup.py app-src
           python3 payloads/tools/patch_s908b_offline_socket_cleanup_v3.py app-src
+          python3 payloads/tools/patch_s908b_disable_external_socket_cleanup_v4.py app-src
           python3 payloads/tools/patch_s908b_compact_log_v4.py app-src
+          python3 payloads/tools/patch_s908b_v4_identity.py app-src
           grep -n "prepareFreshRuntimeWorkspace" app-src/app/src/main/java/dev/busung/s25uroot/InstallViewModel.kt
-          grep -n "cleanupBootstrapSocketAfterInstall" app-src/app/src/main/java/dev/busung/s25uroot/InstallViewModel.kt
           grep -n "Resumo da execução" app-src/app/src/main/java/dev/busung/s25uroot/InstallActivity.kt
           grep -n "Root adquirido" app-src/app/src/main/java/dev/busung/s25uroot/InstallActivity.kt
+          ! grep -n "cleanupBootstrapSocketAfterInstall()" app-src/app/src/main/java/dev/busung/s25uroot/InstallViewModel.kt
 
       - name: Build APK with Gradle
         working-directory: app-src
@@ -104,6 +120,7 @@ jobs:
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
           unzip -l "$APK" | grep -F 'assets/s908b/cve-2026-43499-app.cleanup.so'
           unzip -l "$APK" | grep -F 'assets/s908b/ksud-r0s-S901BXXSNGZD7-kdp'
+          unzip -l "$APK" | grep -F 'lib/arm64-v8a/libcve43499root.so'
           python3 - <<'PY'
           import zipfile
           p = 'app-src/app/build/outputs/apk/debug/app-debug.apk'
@@ -127,11 +144,12 @@ jobs:
             echo 'payload_sha256=d2b52dc52a69571a145a64f0f57ae53884383a996661066ca84b52a45eb691bf'
             echo 'ksu_sha256=fc0097be827dab2078ba23e7af223905cc8ab38c763a602982071439ae7ed962'
             echo 'change=mandatory pre-run cleanup of shell-owned RMG temp paths'
-            echo 'change=root-owned temp_su.sock no longer blocks pre-clean'
-            echo 'change=root helper replaces stale bootstrap socket during UMH startup'
+            echo 'change=root helper unlinks bootstrap socket itself after successful late-load'
+            echo 'change=no post-install reconnect to bootstrap daemon'
             echo 'change=compact summarized visible installer log'
             echo 'change=raw technical log remains intact in history/export'
             echo 'change=post-stage digest verification'
+            sha256sum app-src/app/src/main/jniLibs/arm64-v8a/libcve43499root.so
             sha256sum "$OUT"
           } > output/BUILD-INFO.txt
           cat output/BUILD-INFO.txt
