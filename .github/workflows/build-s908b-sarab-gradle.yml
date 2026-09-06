@@ -54,15 +54,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-arm-linux-gnueabi
 
-      - name: Build pinned S908B payload
+      - name: Build pinned S908B payload and root helper
         shell: bash
         run: |
           set -euo pipefail
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
           cd ionstack
           test "$(git rev-parse HEAD)" = "1bfc3ae56d855881d6cafdba94668db4b718279d"
-          make PROJECT=S908BXXSMGZB2 clean preload
+          make PROJECT=S908BXXSMGZB2 clean preload root-helper
           test -s build/S908BXXSMGZB2/bin/cve-2026-43499
+          test -s build/S908BXXSMGZB2/bin/cve-2026-43499-root
+          sha256sum build/S908BXXSMGZB2/bin/cve-2026-43499
+          sha256sum build/S908BXXSMGZB2/bin/cve-2026-43499-root
+          stat -c '%n %s bytes' \
+            build/S908BXXSMGZB2/bin/cve-2026-43499 \
+            build/S908BXXSMGZB2/bin/cve-2026-43499-root
 
       - name: Prepare offline assets
         shell: bash
@@ -71,6 +77,8 @@ jobs:
           mkdir -p app-src/app/src/main/assets
           cp ionstack/build/S908BXXSMGZB2/bin/cve-2026-43499 \
             app-src/app/src/main/assets/s908b-sarab-1bfc3ae.so
+          cp ionstack/build/S908BXXSMGZB2/bin/cve-2026-43499-root \
+            app-src/app/src/main/assets/cve-2026-43499-root
           curl -fsSL \
             "https://raw.githubusercontent.com/peppicry/Root-My-Galaxy-Payloads/12cdaabadb5cf52181a31421c76859ba1ce54f02/kernelsu/ksud-r0s-S901BXXSNGZD7-kdp" \
             -o app-src/app/src/main/assets/ksud-r0s-S901BXXSNGZD7-kdp
@@ -99,8 +107,11 @@ jobs:
           p = 'app-src/app/build/outputs/apk/debug/app-debug.apk'
           with zipfile.ZipFile(p) as z:
               info = z.getinfo('resources.arsc')
-              print('resources.arsc compress_type=', info.compress_type)
               assert info.compress_type == zipfile.ZIP_STORED
+              assert 'assets/s908b-sarab-1bfc3ae.so' in z.namelist()
+              assert 'assets/cve-2026-43499-root' in z.namelist()
+              assert 'assets/ksud-r0s-S901BXXSNGZD7-kdp' in z.namelist()
+              print('resources.arsc STORED; all three offline assets present')
           PY
 
       - name: Package artifact
@@ -109,14 +120,16 @@ jobs:
           set -euo pipefail
           mkdir -p output
           cp app-src/app/build/outputs/apk/debug/app-debug.apk \
-            output/RootMyGalaxy-S908B-Sarab-1bfc3ae-Gradle.apk
+            output/RootMyGalaxy-S908B-Sarab-1bfc3ae-Gradle-v2-helper.apk
           {
             echo 'app_source=BuSung-dev/Root-My-Galaxy@23adf39fcd4f1be4e73184ee960a6d5399baf147'
             echo 'payload_source=sarabpal-dev/IonStack-S22U@1bfc3ae56d855881d6cafdba94668db4b718279d'
             echo 'target=S908BXXSMGZB2'
             echo 'packaging=Gradle assembleDebug'
-            sha256sum output/RootMyGalaxy-S908B-Sarab-1bfc3ae-Gradle.apk
+            echo 'root_helper=matching cve-2026-43499-root from same commit'
+            sha256sum output/RootMyGalaxy-S908B-Sarab-1bfc3ae-Gradle-v2-helper.apk
             sha256sum app-src/app/src/main/assets/s908b-sarab-1bfc3ae.so
+            sha256sum app-src/app/src/main/assets/cve-2026-43499-root
             sha256sum app-src/app/src/main/assets/ksud-r0s-S901BXXSNGZD7-kdp
           } > output/BUILD-INFO.txt
           cat output/BUILD-INFO.txt
@@ -124,7 +137,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: RootMyGalaxy-S908B-Sarab-1bfc3ae-Gradle
+          name: RootMyGalaxy-S908B-Sarab-1bfc3ae-Gradle-v2-helper
           path: output/*
           if-no-files-found: error
           retention-days: 3
