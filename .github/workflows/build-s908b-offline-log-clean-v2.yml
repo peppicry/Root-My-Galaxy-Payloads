@@ -69,6 +69,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # re.sub treats backslashes in replacement strings specially; make
+          # the generated Kotlin replacement literal before applying the patch.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('payloads/tools/patch_s908b_offline_log_cleanup.py')
+          s = p.read_text()
+          old = 'activity, count = old_pattern.subn(new_log, activity, count=1)'
+          new = 'activity, count = old_pattern.subn(lambda _match: new_log, activity, count=1)'
+          if old not in s:
+              raise SystemExit('patch-script replacement line not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
           python3 payloads/tools/patch_s908b_offline_log_cleanup.py app-src
           grep -n "prepareFreshRuntimeWorkspace" app-src/app/src/main/java/dev/busung/s25uroot/InstallViewModel.kt
           grep -n "buildInstallerLogText" app-src/app/src/main/java/dev/busung/s25uroot/InstallActivity.kt
