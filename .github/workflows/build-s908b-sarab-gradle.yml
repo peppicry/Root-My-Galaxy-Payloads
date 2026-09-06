@@ -1,0 +1,250 @@
+name: Build S908B Sarab A-B APK
+
+on:
+  push:
+    branches:
+      - local-s908b-sarab-repro-1bfc3ae
+    paths:
+      - .github/workflows/build-s908b-sarab-gradle.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout app source
+        uses: actions/checkout@v4
+        with:
+          repository: BuSung-dev/Root-My-Galaxy
+          ref: 23adf39fcd4f1be4e73184ee960a6d5399baf147
+          path: app-src
+
+      - name: Checkout S908B source revision
+        uses: actions/checkout@v4
+        with:
+          repository: sarabpal-dev/IonStack-S22U
+          ref: 1bfc3ae56d855881d6cafdba94668db4b718279d
+          path: ionstack
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK and toolchains
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" \
+            "platforms;android-37" \
+            "build-tools;37.0.0" \
+            "cmake;3.22.1" \
+            "ndk;28.2.13676358"
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabi
+
+      - name: Build exact S908B payload revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
+          cd ionstack
+          test "$(git rev-parse HEAD)" = "1bfc3ae56d855881d6cafdba94668db4b718279d"
+          make PROJECT=S908BXXSMGZB2 clean preload
+          test -s build/S908BXXSMGZB2/bin/cve-2026-43499
+          sha256sum build/S908BXXSMGZB2/bin/cve-2026-43499
+          stat -c '%s' build/S908BXXSMGZB2/bin/cve-2026-43499
+
+      - name: Prepare offline app assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app-src/app/src/main/assets
+          cp ionstack/build/S908BXXSMGZB2/bin/cve-2026-43499 \
+            app-src/app/src/main/assets/s908b-sarab-1bfc3ae.so
+          curl -fsSL \
+            "https://raw.githubusercontent.com/peppicry/Root-My-Galaxy-Payloads/12cdaabadb5cf52181a31421c76859ba1ce54f02/kernelsu/ksud-r0s-S901BXXSNGZD7-kdp" \
+            -o app-src/app/src/main/assets/ksud-r0s-S901BXXSNGZD7-kdp
+          test "$(stat -c%s app-src/app/src/main/assets/ksud-r0s-S901BXXSNGZD7-kdp)" = "4621280"
+          printf '%s  %s\n' \
+            'fc0097be827dab2078ba23e7af223905cc8ab38c763a602982071439ae7ed962' \
+            'app-src/app/src/main/assets/ksud-r0s-S901BXXSNGZD7-kdp' | sha256sum -c -
+
+      - name: Patch app for offline A-B build
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          app = Path('app-src')
+          payload = app / 'app/src/main/assets/s908b-sarab-1bfc3ae.so'
+          payload_size = payload.stat().st_size
+
+          repo = app / 'app/src/main/java/dev/busung/s25uroot/PayloadRepository.kt'
+          repo.write_text(f'''package dev.busung.s25uroot
+
+import android.content.Context
+import android.system.Os
+import java.io.File
+import java.io.FileOutputStream
+
+data class VerifiedPayloads(
+    val profile: TargetProfile,
+    val exploit: File,
+    val kernelSu: File,
+)
+
+class PayloadRepository(private val context: Context) {{
+    private val localProfile = TargetProfile(
+        profileId = "b0s-S908BXXSMGZB2-sarab-1bfc3ae",
+        displayName = "Galaxy S22 Ultra SM-S908B | Sarab 1bfc3ae A/B",
+        models = setOf("SM-S908B"),
+        kernelVersions = setOf("5.10.237"),
+        exploit = RemoteArtifact("asset://s908b-sarab-1bfc3ae.so", {payload_size}L),
+        kernelSu = RemoteArtifact("asset://ksud-r0s-S901BXXSNGZD7-kdp", 4621280L),
+    )
+
+    fun loadTargets(): List<TargetProfile> = listOf(localProfile)
+
+    fun resolveTarget(snapshot: DeviceSnapshot): TargetProfile =
+        localProfile.takeIf {{ it.matches(snapshot) }}
+            ?: error(context.getString(R.string.repo_no_profile))
+
+    fun resolveTarget(profileId: String): TargetProfile =
+        localProfile.takeIf {{ it.profileId == profileId }}
+            ?: error(context.getString(R.string.repo_profile_missing, profileId))
+
+    fun download(profile: TargetProfile, onProgress: (String) -> Unit): VerifiedPayloads {{
+        val directory = File(context.filesDir, "payloads/${{profile.profileId}}").apply {{ mkdirs() }}
+        val exploit = copyAsset(
+            "s908b-sarab-1bfc3ae.so",
+            profile.exploit.size,
+            File(directory, "cve-2026-43499-app.so"),
+            context.getString(R.string.artifact_exploit),
+            onProgress,
+        )
+        val kernelSu = copyAsset(
+            "ksud-r0s-S901BXXSNGZD7-kdp",
+            profile.kernelSu.size,
+            File(directory, "ksud-s25u-kdp"),
+            context.getString(R.string.artifact_kernelsu),
+            onProgress,
+        )
+        Os.chmod(exploit.absolutePath, 0b100100100)
+        Os.chmod(kernelSu.absolutePath, 0b100100100)
+        return VerifiedPayloads(profile, exploit, kernelSu)
+    }}
+
+    private fun copyAsset(
+        assetName: String,
+        expectedSize: Long,
+        destination: File,
+        label: String,
+        onProgress: (String) -> Unit,
+    ): File {{
+        onProgress(context.getString(R.string.repo_downloading, label))
+        val temporary = File(destination.parentFile, "${{destination.name}}.part")
+        context.assets.open(assetName).use {{ input ->
+            FileOutputStream(temporary).use {{ output ->
+                input.copyTo(output)
+                output.fd.sync()
+            }}
+        }}
+        require(temporary.length() == expectedSize) {{ context.getString(R.string.repo_size_mismatch, label) }}
+        if (destination.exists()) destination.delete()
+        require(temporary.renameTo(destination)) {{ context.getString(R.string.repo_finalize_failed, label) }}
+        onProgress(context.getString(R.string.repo_verified, label))
+        return destination
+    }}
+}}
+''')
+
+          gradle = app / 'app/build.gradle.kts'
+          text = gradle.read_text()
+          text = text.replace(
+              'applicationId = "dev.busung.s25uroot"',
+              'applicationId = "dev.busung.s25uroot.sarabtest"',
+              1,
+          )
+          text = text.replace(
+              'versionName = "0.2.65"',
+              'versionName = "0.2.65-sarab-1bfc3ae"',
+              1,
+          )
+          gradle.write_text(text)
+
+          changed = 0
+          for strings in (app / 'app/src/main/res').glob('values*/strings.xml'):
+              source = strings.read_text()
+              patched, count = re.subn(
+                  r'(<string name="app_name">).*?(</string>)',
+                  r'\1Root My Galaxy — Sarab A/B\2',
+                  source,
+                  count=1,
+              )
+              if count:
+                  strings.write_text(patched)
+                  changed += 1
+          if not changed:
+              raise SystemExit('app_name not found')
+          print('payload_size=', payload_size)
+          PY
+
+      - name: Build APK with Gradle
+        working-directory: app-src
+        shell: bash
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Validate Android packaging and signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app-src/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/37.0.0"
+          "$BUILD_TOOLS/zipalign" -c -P 16 -v 4 "$APK"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          python3 - <<'PY'
+          import zipfile
+          p='app-src/app/build/outputs/apk/debug/app-debug.apk'
+          with zipfile.ZipFile(p) as z:
+              i=z.getinfo('resources.arsc')
+              print('resources.arsc compress_type=', i.compress_type)
+              assert i.compress_type == zipfile.ZIP_STORED
+          PY
+
+      - name: Package result
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          cp app-src/app/build/outputs/apk/debug/app-debug.apk \
+            output/RootMyGalaxy-S908B-Sarab-1bfc3ae-Gradle.apk
+          {
+            echo 'app_source=BuSung-dev/Root-My-Galaxy@23adf39fcd4f1be4e73184ee960a6d5399baf147'
+            echo 'payload_source=sarabpal-dev/IonStack-S22U@1bfc3ae56d855881d6cafdba94668db4b718279d'
+            echo 'target=S908BXXSMGZB2'
+            echo 'packaging=Gradle assembleDebug'
+            sha256sum output/RootMyGalaxy-S908B-Sarab-1bfc3ae-Gradle.apk
+            sha256sum app-src/app/src/main/assets/s908b-sarab-1bfc3ae.so
+            sha256sum app-src/app/src/main/assets/ksud-r0s-S901BXXSNGZD7-kdp
+          } > output/BUILD-INFO.txt
+          cat output/BUILD-INFO.txt
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: RootMyGalaxy-S908B-Sarab-1bfc3ae-Gradle
+          path: output/*
+          if-no-files-found: error
+          retention-days: 3
