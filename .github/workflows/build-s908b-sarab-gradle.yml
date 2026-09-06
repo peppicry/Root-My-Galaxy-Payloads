@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - local-s908b-sarab-repro-1bfc3ae
-    paths:
-      - .github/workflows/build-s908b-sarab-gradle.yml
   workflow_dispatch:
 
 permissions:
