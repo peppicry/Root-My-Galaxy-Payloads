@@ -1,4 +1,4 @@
-name: Build S908B Offline Log Clean v2
+name: Build S908B Offline Log Clean v3
 
 on:
   push:
@@ -65,24 +65,28 @@ jobs:
             'fc0097be827dab2078ba23e7af223905cc8ab38c763a602982071439ae7ed962' \
             'app-src/app/src/main/assets/s908b/ksud-r0s-S901BXXSNGZD7-kdp' | sha256sum -c -
 
-      - name: Apply offline cleanup and log UI patch
+      - name: Apply offline cleanup, log UI and socket lifecycle patches
         shell: bash
         run: |
           set -euo pipefail
           # re.sub treats backslashes in replacement strings specially; make
-          # the generated Kotlin replacement literal before applying the patch.
+          # the generated Kotlin replacement literal before applying the base patch.
           python3 - <<'PY'
           from pathlib import Path
           p = Path('payloads/tools/patch_s908b_offline_log_cleanup.py')
           s = p.read_text()
           old = 'activity, count = old_pattern.subn(new_log, activity, count=1)'
           new = 'activity, count = old_pattern.subn(lambda _match: new_log, activity, count=1)'
-          if old not in s:
+          if old in s:
+              p.write_text(s.replace(old, new, 1))
+          elif new not in s:
               raise SystemExit('patch-script replacement line not found')
-          p.write_text(s.replace(old, new, 1))
           PY
           python3 payloads/tools/patch_s908b_offline_log_cleanup.py app-src
+          python3 payloads/tools/patch_s908b_offline_socket_cleanup_v3.py app-src
           grep -n "prepareFreshRuntimeWorkspace" app-src/app/src/main/java/dev/busung/s25uroot/InstallViewModel.kt
+          grep -n "cleanupBootstrapSocketAfterInstall" app-src/app/src/main/java/dev/busung/s25uroot/InstallViewModel.kt
+          grep -n "ROOT_BOOTSTRAP_SOCKET_PATH" app-src/app/src/main/java/dev/busung/s25uroot/InstallViewModel.kt
           grep -n "buildInstallerLogText" app-src/app/src/main/java/dev/busung/s25uroot/InstallActivity.kt
 
       - name: Build APK with Gradle
@@ -115,15 +119,18 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p output
-          OUT="output/RootMyGalaxy-S908B-GZB2-Offline-LogClean-v2.apk"
+          OUT="output/RootMyGalaxy-S908B-GZB2-Offline-LogClean-v3.apk"
           cp app-src/app/build/outputs/apk/debug/app-debug.apk "$OUT"
           {
-            echo 'variant=S908B GZB2 Offline LogClean v2'
+            echo 'variant=S908B GZB2 Offline LogClean v3'
             echo 'app_source=BuSung-dev/Root-My-Galaxy@23adf39fcd4f1be4e73184ee960a6d5399baf147'
             echo "payload_branch_sha=$(git -C payloads rev-parse HEAD)"
             echo 'payload_sha256=d2b52dc52a69571a145a64f0f57ae53884383a996661066ca84b52a45eb691bf'
             echo 'ksu_sha256=fc0097be827dab2078ba23e7af223905cc8ab38c763a602982071439ae7ed962'
-            echo 'change=mandatory pre-run cleanup of RMG temp paths'
+            echo 'change=mandatory pre-run cleanup of shell-owned RMG temp paths'
+            echo 'change=root-owned temp_su.sock no longer blocks pre-clean'
+            echo 'change=root helper replaces stale bootstrap socket during UMH startup'
+            echo 'change=bootstrap socket unlinked after KernelSU verification'
             echo 'change=post-stage digest verification'
             echo 'change=annotated terminal-style live log UI'
             sha256sum "$OUT"
@@ -133,7 +140,7 @@ jobs:
       - name: Upload lab APK
         uses: actions/upload-artifact@v4
         with:
-          name: RootMyGalaxy-S908B-GZB2-Offline-LogClean-v2
+          name: RootMyGalaxy-S908B-GZB2-Offline-LogClean-v3
           path: output/*
           if-no-files-found: error
           retention-days: 3
