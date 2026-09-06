@@ -1,0 +1,127 @@
+name: Build S908B Offline Log Clean v2
+
+on:
+  push:
+    branches:
+      - lab-s908b-offline-telemetry-cleanup
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout lab branch
+        uses: actions/checkout@v4
+        with:
+          path: payloads
+
+      - name: Checkout pinned Root My Galaxy app
+        uses: actions/checkout@v4
+        with:
+          repository: BuSung-dev/Root-My-Galaxy
+          ref: 23adf39fcd4f1be4e73184ee960a6d5399baf147
+          path: app-src
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" \
+            "platforms;android-37.0" \
+            "build-tools;37.0.0" \
+            "cmake;3.22.1" \
+            "ndk;28.2.13676358"
+
+      - name: Prepare exact offline S908B assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app-src/app/src/main/assets/s908b
+          cp payloads/artifacts/b0s-S908BXXSMGZB2/cve-2026-43499-app.so \
+            app-src/app/src/main/assets/s908b/cve-2026-43499-app.cleanup.so
+          cp payloads/kernelsu/ksud-r0s-S901BXXSNGZD7-kdp \
+            app-src/app/src/main/assets/s908b/ksud-r0s-S901BXXSNGZD7-kdp
+
+          test "$(stat -c%s app-src/app/src/main/assets/s908b/cve-2026-43499-app.cleanup.so)" = "1757752"
+          printf '%s  %s\n' \
+            'd2b52dc52a69571a145a64f0f57ae53884383a996661066ca84b52a45eb691bf' \
+            'app-src/app/src/main/assets/s908b/cve-2026-43499-app.cleanup.so' | sha256sum -c -
+
+          test "$(stat -c%s app-src/app/src/main/assets/s908b/ksud-r0s-S901BXXSNGZD7-kdp)" = "4621280"
+          printf '%s  %s\n' \
+            'fc0097be827dab2078ba23e7af223905cc8ab38c763a602982071439ae7ed962' \
+            'app-src/app/src/main/assets/s908b/ksud-r0s-S901BXXSNGZD7-kdp' | sha256sum -c -
+
+      - name: Apply offline cleanup and log UI patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 payloads/tools/patch_s908b_offline_log_cleanup.py app-src
+          grep -n "prepareFreshRuntimeWorkspace" app-src/app/src/main/java/dev/busung/s25uroot/InstallViewModel.kt
+          grep -n "buildInstallerLogText" app-src/app/src/main/java/dev/busung/s25uroot/InstallActivity.kt
+
+      - name: Build APK with Gradle
+        working-directory: app-src
+        shell: bash
+        run: ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Validate APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app-src/app/build/outputs/apk/debug/app-debug.apk"
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/37.0.0"
+          test -s "$APK"
+          "$BUILD_TOOLS/zipalign" -c -P 16 -v 4 "$APK"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          unzip -l "$APK" | grep -F 'assets/s908b/cve-2026-43499-app.cleanup.so'
+          unzip -l "$APK" | grep -F 'assets/s908b/ksud-r0s-S901BXXSNGZD7-kdp'
+          python3 - <<'PY'
+          import zipfile
+          p = 'app-src/app/build/outputs/apk/debug/app-debug.apk'
+          with zipfile.ZipFile(p) as z:
+              info = z.getinfo('resources.arsc')
+              print('resources.arsc compress_type=', info.compress_type)
+              assert info.compress_type == zipfile.ZIP_STORED
+          PY
+
+      - name: Package artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          OUT="output/RootMyGalaxy-S908B-GZB2-Offline-LogClean-v2.apk"
+          cp app-src/app/build/outputs/apk/debug/app-debug.apk "$OUT"
+          {
+            echo 'variant=S908B GZB2 Offline LogClean v2'
+            echo 'app_source=BuSung-dev/Root-My-Galaxy@23adf39fcd4f1be4e73184ee960a6d5399baf147'
+            echo "payload_branch_sha=$(git -C payloads rev-parse HEAD)"
+            echo 'payload_sha256=d2b52dc52a69571a145a64f0f57ae53884383a996661066ca84b52a45eb691bf'
+            echo 'ksu_sha256=fc0097be827dab2078ba23e7af223905cc8ab38c763a602982071439ae7ed962'
+            echo 'change=mandatory pre-run cleanup of RMG temp paths'
+            echo 'change=post-stage digest verification'
+            echo 'change=annotated terminal-style live log UI'
+            sha256sum "$OUT"
+          } > output/BUILD-INFO.txt
+          cat output/BUILD-INFO.txt
+
+      - name: Upload lab APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: RootMyGalaxy-S908B-GZB2-Offline-LogClean-v2
+          path: output/*
+          if-no-files-found: error
+          retention-days: 3
