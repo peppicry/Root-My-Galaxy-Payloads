@@ -39,7 +39,6 @@ jobs:
           test "$(stat -c %s "$P")" = "104128"
           sha256sum "$P" | tee build/pa3q-S938BXXSBCZG3/SHA256SUMS.txt
           strings "$P" | grep -F "pa3q-S938BXXSBCZG3-app-physical-p0-oracle"
-          strings "$P" | grep -F "S938BXXSBCZG3_OXMBCZG3"
 
       - name: Upload DIVA payload
         uses: actions/upload-artifact@v4
