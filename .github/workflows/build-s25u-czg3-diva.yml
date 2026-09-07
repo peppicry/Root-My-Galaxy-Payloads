@@ -23,9 +23,9 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          yes | sdkmanager --licenses >/dev/null || true
-          yes | sdkmanager "ndk;29.0.14206865" || yes | sdkmanager "ndk;28.2.13676358"
+          sdkmanager "ndk;29.0.14206865" || sdkmanager "ndk;28.2.13676358"
           NDK="$(find "$ANDROID_SDK_ROOT/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          test -n "$NDK"
           echo "ANDROID_NDK_HOME=$NDK" >> "$GITHUB_ENV"
           echo "Using NDK: $NDK"
 
