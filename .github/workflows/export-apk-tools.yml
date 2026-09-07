@@ -1,0 +1,37 @@
+name: Export APK tools
+
+on:
+  push:
+    branches:
+      - s25u-czg3-divas-build
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Locate Android build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          BT="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          echo "BT=$BT"
+          test -x "$BT/zipalign"
+          test -x "$BT/apksigner"
+          mkdir -p out/lib
+          cp "$BT/zipalign" out/zipalign
+          cp "$BT/apksigner" out/apksigner
+          cp "$BT/lib/apksigner.jar" out/lib/apksigner.jar
+          chmod +x out/zipalign out/apksigner
+          sha256sum out/zipalign out/apksigner out/lib/apksigner.jar > out/SHA256SUMS.txt
+
+      - name: Upload APK tools
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-tools
+          path: out/
+          if-no-files-found: error
+          retention-days: 1
