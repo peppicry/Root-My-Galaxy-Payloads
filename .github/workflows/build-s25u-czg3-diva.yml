@@ -1,0 +1,52 @@
+name: Build S25U CZG3 DIVA payload
+
+on:
+  push:
+    branches:
+      - s25u-czg3-divas-build
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        shell: bash
+        run: |
+          set -euxo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          yes | sdkmanager "ndk;29.0.14206865" || yes | sdkmanager "ndk;28.2.13676358"
+          NDK="$(find "$ANDROID_SDK_ROOT/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          echo "ANDROID_NDK_HOME=$NDK" >> "$GITHUB_ENV"
+          echo "Using NDK: $NDK"
+
+      - name: Build exact CZG3 app payload
+        shell: bash
+        run: |
+          set -euxo pipefail
+          make release TARGET=pa3q-S938BXXSBCZG3
+          P=build/pa3q-S938BXXSBCZG3/cve-2026-43499-app.release.so
+          test -f "$P"
+          test "$(stat -c %s "$P")" = "104128"
+          sha256sum "$P" | tee build/pa3q-S938BXXSBCZG3/SHA256SUMS.txt
+          strings "$P" | grep -F "pa3q-S938BXXSBCZG3-app-physical-p0-oracle"
+          strings "$P" | grep -F "S938BXXSBCZG3_OXMBCZG3"
+
+      - name: Upload DIVA payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: s25u-czg3-diva-payload
+          path: |
+            build/pa3q-S938BXXSBCZG3/cve-2026-43499-app.release.so
+            build/pa3q-S938BXXSBCZG3/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
