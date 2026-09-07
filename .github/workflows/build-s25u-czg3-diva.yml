@@ -40,16 +40,29 @@ jobs:
           sha256sum "$P" | tee build/pa3q-S938BXXSBCZG3/SHA256SUMS.txt
           strings "$P" | grep -F "pa3q-S938BXXSBCZG3-app-physical-p0-oracle"
 
-      - name: Export zipalign runtime dependency
+      - name: Export matching build-tools 34 pair
         shell: bash
         run: |
           set -euxo pipefail
-          mkdir -p build/apk-tools-runtime
-          LIBCPP="$ANDROID_HOME/build-tools/34.0.0/lib64/libc++.so"
-          test -f "$LIBCPP"
-          cp "$LIBCPP" build/apk-tools-runtime/libc++.so
-          ldd "$ANDROID_HOME/build-tools/34.0.0/zipalign" || true
-          sha256sum build/apk-tools-runtime/libc++.so > build/apk-tools-runtime/SHA256SUMS.txt
+          BT="$ANDROID_HOME/build-tools/34.0.0"
+          test -x "$BT/zipalign"
+          test -x "$BT/apksigner"
+          test -f "$BT/lib64/libc++.so"
+          test -f "$BT/lib/apksigner.jar"
+          mkdir -p build/apk-tools-runtime/lib build/apk-tools-runtime/lib64
+          cp "$BT/zipalign" build/apk-tools-runtime/zipalign
+          cp "$BT/apksigner" build/apk-tools-runtime/apksigner
+          cp "$BT/lib/apksigner.jar" build/apk-tools-runtime/lib/apksigner.jar
+          cp "$BT/lib64/libc++.so" build/apk-tools-runtime/lib64/libc++.so
+          chmod +x build/apk-tools-runtime/zipalign build/apk-tools-runtime/apksigner
+          LD_LIBRARY_PATH="$BT/lib64" "$BT/zipalign" -h >/dev/null 2>&1 || true
+          "$BT/apksigner" version
+          sha256sum \
+            build/apk-tools-runtime/zipalign \
+            build/apk-tools-runtime/apksigner \
+            build/apk-tools-runtime/lib/apksigner.jar \
+            build/apk-tools-runtime/lib64/libc++.so \
+            > build/apk-tools-runtime/SHA256SUMS.txt
 
       - name: Upload DIVA payload
         uses: actions/upload-artifact@v4
@@ -58,7 +71,6 @@ jobs:
           path: |
             build/pa3q-S938BXXSBCZG3/cve-2026-43499-app.release.so
             build/pa3q-S938BXXSBCZG3/SHA256SUMS.txt
-            build/apk-tools-runtime/libc++.so
-            build/apk-tools-runtime/SHA256SUMS.txt
+            build/apk-tools-runtime/
           if-no-files-found: error
           retention-days: 7
