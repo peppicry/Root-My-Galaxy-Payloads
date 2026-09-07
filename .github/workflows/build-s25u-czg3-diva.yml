@@ -40,6 +40,17 @@ jobs:
           sha256sum "$P" | tee build/pa3q-S938BXXSBCZG3/SHA256SUMS.txt
           strings "$P" | grep -F "pa3q-S938BXXSBCZG3-app-physical-p0-oracle"
 
+      - name: Export zipalign runtime dependency
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p build/apk-tools-runtime
+          LIBCPP="$(find "$ANDROID_HOME" -type f -name 'libc++.so' | head -n 1)"
+          test -n "$LIBCPP"
+          cp "$LIBCPP" build/apk-tools-runtime/libc++.so
+          ldd "$(find "$ANDROID_HOME/build-tools" -type f -name zipalign | sort -V | tail -n 1)" || true
+          sha256sum build/apk-tools-runtime/libc++.so > build/apk-tools-runtime/SHA256SUMS.txt
+
       - name: Upload DIVA payload
         uses: actions/upload-artifact@v4
         with:
@@ -47,5 +58,7 @@ jobs:
           path: |
             build/pa3q-S938BXXSBCZG3/cve-2026-43499-app.release.so
             build/pa3q-S938BXXSBCZG3/SHA256SUMS.txt
+            build/apk-tools-runtime/libc++.so
+            build/apk-tools-runtime/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 7
