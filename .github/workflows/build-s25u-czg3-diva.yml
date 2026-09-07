@@ -45,10 +45,10 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p build/apk-tools-runtime
-          LIBCPP="$(find "$ANDROID_HOME" -type f -name 'libc++.so' | head -n 1)"
-          test -n "$LIBCPP"
+          LIBCPP="$ANDROID_HOME/build-tools/34.0.0/lib64/libc++.so"
+          test -f "$LIBCPP"
           cp "$LIBCPP" build/apk-tools-runtime/libc++.so
-          ldd "$(find "$ANDROID_HOME/build-tools" -type f -name zipalign | sort -V | tail -n 1)" || true
+          ldd "$ANDROID_HOME/build-tools/34.0.0/zipalign" || true
           sha256sum build/apk-tools-runtime/libc++.so > build/apk-tools-runtime/SHA256SUMS.txt
 
       - name: Upload DIVA payload
