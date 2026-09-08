@@ -72,6 +72,15 @@ jobs:
             app-src/app/src/main/java/dev/busung/s25uroot/PayloadRepository.kt
           grep -F "/system/bin/insmod" \
             app-src/app/src/main/java/dev/busung/s25uroot/InstallViewModel.kt
+          grep -F 'KERNEL_SU_MANAGER_PACKAGE = "com.rifsxd.ksunext"' \
+            app-src/app/src/main/java/dev/busung/s25uroot/MainActivity.kt
+          grep -F '<package android:name="com.rifsxd.ksunext" />' \
+            app-src/app/src/main/AndroidManifest.xml
+          if grep -Fq 'KERNEL_SU_MANAGER_PACKAGE = "me.weishu.kernelsu"' \
+            app-src/app/src/main/java/dev/busung/s25uroot/MainActivity.kt; then
+            echo "Preview still targets original KernelSU Manager" >&2
+            exit 1
+          fi
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -116,25 +125,30 @@ jobs:
 
           Device matcher: SM-S908B
           Kernel matcher: 5.10.237
-          Hardware-validated exploit firmware: S908BXXSMGZB2
+          Hardware-validated firmware: S908BXXSMGZB2
 
           Root flow:
           1. Run the same PR #272 exploit.
           2. After uid=0 is obtained, stage the Samsung 5.10 KernelSU Next LKM.
           3. Load it with insmod through the existing root helper.
-          4. Confirm /sys/module/kernelsu is present.
-          5. Install/open the bundled KernelSU Next Manager APK.
+          4. Treat insmod rc=0 as kernel acceptance of the LKM.
+          5. Open the bundled KernelSU Next Manager for runtime confirmation.
 
+          Manager package: com.rifsxd.ksunext
+          Manager launcher: com.rifsxd.ksunext/.ui.MainActivity
           KernelSU Next source: sarabpal-dev/KernelSU-Next
           Release: $KSU_NEXT_RELEASE
           Module SHA-256: $KSU_NEXT_KO_SHA256
           Manager SHA-256: $KSU_NEXT_MANAGER_SHA256
 
+          Hardware validation:
+          - SM-S908B / S908BXXSMGZB2: successful on physical hardware.
+          - KernelSU Next Manager reported running in LKM / Jailbreak mode.
+          - su returned uid=0(root), context u:r:ksu:s0, with SELinux Enforcing.
+
           Important:
-          - Root is still temporary and disappears after reboot.
+          - Root is temporary and disappears after reboot.
           - The normal PR #272 KernelSU path remains the tested fallback.
-          - This KernelSU Next path has not yet been hardware-validated on the
-            SM-S908B/GZB2 used for the 7/7 PR #272 validation set.
           EOF
 
           (
