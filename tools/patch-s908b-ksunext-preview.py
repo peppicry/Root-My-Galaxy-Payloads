@@ -87,6 +87,8 @@ def patch_install_view_model(path: Path) -> None:
 
     replacement = '''    private suspend fun installKernelSu(payloads: VerifiedPayloads) {
         val modulePath = "/data/local/tmp/kernelsu-next-android12-5.10.ko"
+        val rootProbeCommand =
+            "[ -d /sys/module/kernelsu ] || /system/bin/toybox grep -q '^kernelsu ' /proc/modules"
 
         if (shizukuEnabled()) {
             shizukuStage(payloads.kernelSu, modulePath, "644")
@@ -102,27 +104,36 @@ def patch_install_view_model(path: Path) -> None:
         }
         appendLog("[*] KernelSU Next module staged")
 
-        if (!NativeProbe.isKernelSuActive()) {
+        // The app process itself can be denied access to /sys/module and
+        // /proc/modules by Samsung SELinux even after the module is live.
+        // Probe from the root helper instead, in the same privileged context
+        // used to load the LKM.
+        var rootProbe = runHelper("-c", rootProbeCommand)
+        if (rootProbe.code != 0) {
             val load = runHelper(
                 "-c",
                 "/system/bin/insmod ${shellQuote(modulePath)}",
             )
-            require(load.code == 0 || NativeProbe.isKernelSuActive()) {
+            require(load.code == 0) {
                 "KernelSU Next insmod failed (${load.code}): ${load.output}"
             }
-        }
+            if (load.output.isNotBlank()) appendLog(load.output)
 
-        var active = NativeProbe.isKernelSuActive()
-        repeat(20) {
-            if (!active) {
+            var tries = 0
+            rootProbe = runHelper("-c", rootProbeCommand)
+            while (rootProbe.code != 0 && tries < 8) {
                 delay(250.milliseconds)
-                active = NativeProbe.isKernelSuActive()
+                rootProbe = runHelper("-c", rootProbeCommand)
+                tries++
             }
         }
-        require(active) { "KernelSU Next module did not become active" }
+
+        require(rootProbe.code == 0) {
+            "KernelSU Next loaded but root-side module verification failed: ${rootProbe.output}"
+        }
 
         storeInstallReceipt()
-        appendLog("[+] KernelSU Next kernel module active")
+        appendLog("[+] KernelSU Next kernel module active (root-side verified)")
         appendLog("[*] Install/open the bundled KernelSU Next Manager to finish userspace setup")
     }'''
 
