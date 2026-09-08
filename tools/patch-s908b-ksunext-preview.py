@@ -102,33 +102,64 @@ def patch_install_view_model(path: Path) -> None:
         }
         appendLog("[*] KernelSU Next module staged")
 
-        // Keep module loading and verification inside one bootstrap-root shell.
-        // Once KernelSU Next is active, starting a second helper command can be
-        // routed through su before the userspace daemon has been initialized by
-        // the Manager, producing a false "connect daemon: Permission denied".
-        val quotedModule = shellQuote(modulePath)
-        val loadAndVerifyCommand =
-            "if [ ! -d /sys/module/kernelsu ] && " +
-                "! /system/bin/toybox grep -q '^kernelsu ' /proc/modules 2>/dev/null; then " +
-                "/system/bin/insmod $quotedModule || exit $?; " +
-                "fi; " +
-                "if [ -d /sys/module/kernelsu ] || " +
-                "/system/bin/toybox grep -q '^kernelsu ' /proc/modules 2>/dev/null; then " +
-                "echo KSU_NEXT_LKM_ACTIVE; exit 0; " +
-                "else echo KSU_NEXT_LKM_NOT_VISIBLE; exit 42; fi"
-
-        val load = runHelper("-c", loadAndVerifyCommand)
+        // Do not use /sys/module or /proc/modules as the post-load success gate here.
+        // On this Samsung jailbreak path the module can be fully usable by the
+        // KernelSU Next Manager while those interfaces are not visible from the
+        // Root My Galaxy app/helper path after the LKM changes the security context.
+        // A successful insmod return means the kernel accepted the module and its
+        // init routine returned success. Functional runtime confirmation is then
+        // performed by the matching KernelSU Next Manager / su control channel.
+        val load = runHelper(
+            "-c",
+            "/system/bin/insmod ${shellQuote(modulePath)}",
+        )
         if (load.output.isNotBlank()) appendLog(load.output)
-        require(load.code == 0 && load.output.contains("KSU_NEXT_LKM_ACTIVE")) {
-            "KernelSU Next load/verification failed (${load.code}): ${load.output}"
+        require(load.code == 0) {
+            "KernelSU Next insmod failed (${load.code}): ${load.output}"
         }
 
         storeInstallReceipt()
-        appendLog("[+] KernelSU Next kernel module active (same-session verified)")
-        appendLog("[*] Install/open the bundled KernelSU Next Manager to finish userspace setup")
+        appendLog("[+] KernelSU Next LKM load accepted by kernel (insmod rc=0)")
+        appendLog("[*] Open the bundled KernelSU Next Manager to confirm runtime root")
     }'''
 
     path.write_text(source[:start] + replacement + source[end:])
+
+
+def patch_preview_strings(app: Path) -> None:
+    replacements = {
+        "values/strings.xml": {
+            "step_ksu_title": "Load KernelSU Next",
+            "step_ksu_detail": "Load the LKM with bootstrap root",
+            "phase_loading_ksu": "Loading KernelSU Next with bootstrap root",
+            "phase_installed": "KernelSU Next LKM loaded; open Manager to confirm runtime",
+            "status_ksu_loading": "Loading KernelSU Next LKM",
+        },
+        "values-pt-rBR/strings.xml": {
+            "step_ksu_title": "Carregar KernelSU Next",
+            "step_ksu_detail": "Carregar o módulo LKM com o root bootstrap",
+            "phase_loading_ksu": "Carregando o KernelSU Next com o root bootstrap",
+            "phase_installed": "KernelSU Next carregado; abra o Manager para confirmar o ambiente",
+            "status_ksu_loading": "Carregando o módulo KernelSU Next",
+        },
+    }
+
+    for relative, mapping in replacements.items():
+        path = app / "app/src/main/res" / relative
+        if not path.exists():
+            continue
+        source = path.read_text()
+        for name, value in mapping.items():
+            pattern = rf'(<string name="{re.escape(name)}">).*?(</string>)'
+            source, count = re.subn(
+                pattern,
+                lambda match, value=value: match.group(1) + value + match.group(2),
+                source,
+                count=1,
+            )
+            if count != 1:
+                raise RuntimeError(f"string resource {name} not found in {relative}")
+        path.write_text(source)
 
 
 def patch_app_identity(app: Path) -> None:
@@ -175,6 +206,7 @@ def main() -> None:
     patch_install_view_model(
         app / "app/src/main/java/dev/busung/s25uroot/InstallViewModel.kt"
     )
+    patch_preview_strings(app)
     patch_app_identity(app)
 
     print(f"KernelSU Next preview pinned to payload commit {payload_sha}")
