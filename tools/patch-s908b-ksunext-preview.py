@@ -87,8 +87,6 @@ def patch_install_view_model(path: Path) -> None:
 
     replacement = '''    private suspend fun installKernelSu(payloads: VerifiedPayloads) {
         val modulePath = "/data/local/tmp/kernelsu-next-android12-5.10.ko"
-        val rootProbeCommand =
-            "[ -d /sys/module/kernelsu ] || /system/bin/toybox grep -q '^kernelsu ' /proc/modules"
 
         if (shizukuEnabled()) {
             shizukuStage(payloads.kernelSu, modulePath, "644")
@@ -104,36 +102,29 @@ def patch_install_view_model(path: Path) -> None:
         }
         appendLog("[*] KernelSU Next module staged")
 
-        // The app process itself can be denied access to /sys/module and
-        // /proc/modules by Samsung SELinux even after the module is live.
-        // Probe from the root helper instead, in the same privileged context
-        // used to load the LKM.
-        var rootProbe = runHelper("-c", rootProbeCommand)
-        if (rootProbe.code != 0) {
-            val load = runHelper(
-                "-c",
-                "/system/bin/insmod ${shellQuote(modulePath)}",
-            )
-            require(load.code == 0) {
-                "KernelSU Next insmod failed (${load.code}): ${load.output}"
-            }
-            if (load.output.isNotBlank()) appendLog(load.output)
+        // Keep module loading and verification inside one bootstrap-root shell.
+        // Once KernelSU Next is active, starting a second helper command can be
+        // routed through su before the userspace daemon has been initialized by
+        // the Manager, producing a false "connect daemon: Permission denied".
+        val quotedModule = shellQuote(modulePath)
+        val loadAndVerifyCommand =
+            "if [ ! -d /sys/module/kernelsu ] && " +
+                "! /system/bin/toybox grep -q '^kernelsu ' /proc/modules 2>/dev/null; then " +
+                "/system/bin/insmod $quotedModule || exit $?; " +
+                "fi; " +
+                "if [ -d /sys/module/kernelsu ] || " +
+                "/system/bin/toybox grep -q '^kernelsu ' /proc/modules 2>/dev/null; then " +
+                "echo KSU_NEXT_LKM_ACTIVE; exit 0; " +
+                "else echo KSU_NEXT_LKM_NOT_VISIBLE; exit 42; fi"
 
-            var tries = 0
-            rootProbe = runHelper("-c", rootProbeCommand)
-            while (rootProbe.code != 0 && tries < 8) {
-                delay(250.milliseconds)
-                rootProbe = runHelper("-c", rootProbeCommand)
-                tries++
-            }
-        }
-
-        require(rootProbe.code == 0) {
-            "KernelSU Next loaded but root-side module verification failed: ${rootProbe.output}"
+        val load = runHelper("-c", loadAndVerifyCommand)
+        if (load.output.isNotBlank()) appendLog(load.output)
+        require(load.code == 0 && load.output.contains("KSU_NEXT_LKM_ACTIVE")) {
+            "KernelSU Next load/verification failed (${load.code}): ${load.output}"
         }
 
         storeInstallReceipt()
-        appendLog("[+] KernelSU Next kernel module active (root-side verified)")
+        appendLog("[+] KernelSU Next kernel module active (same-session verified)")
         appendLog("[*] Install/open the bundled KernelSU Next Manager to finish userspace setup")
     }'''
 
