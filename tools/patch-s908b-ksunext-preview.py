@@ -11,6 +11,12 @@ KSU_NEXT_URL = (
 )
 KSU_NEXT_SIZE = 461880
 KSU_NEXT_SHA256 = "51ba8ddbb1237c44b591c9766d2caf9a221dc45a1c59e9162337c3ff27150e29"
+KSU_NEXT_MANAGER_URL = (
+    "https://github.com/sarabpal-dev/KernelSU-Next/releases/download/"
+    "v3.3.0-android12-5.10/KernelSU_Next_v3.3.0-release.apk"
+)
+KSU_NEXT_MANAGER_PACKAGE = "com.rifsxd.ksunext"
+KSU_NEXT_HOME_URL = "https://github.com/sarabpal-dev/KernelSU-Next"
 
 
 def patch_payload_repository(path: Path, payload_sha: str) -> None:
@@ -126,6 +132,32 @@ def patch_install_view_model(path: Path) -> None:
     path.write_text(source[:start] + replacement + source[end:])
 
 
+def patch_manager_target(app: Path) -> None:
+    main_activity = app / "app/src/main/java/dev/busung/s25uroot/MainActivity.kt"
+    source = main_activity.read_text()
+
+    old = '''private const val KERNEL_SU_MANAGER_URL =
+    "https://github.com/tiann/KernelSU/releases/download/v3.2.5/KernelSU_v3.2.5_32525-release.apk"
+private const val KERNEL_SU_MANAGER_PACKAGE = "me.weishu.kernelsu"
+private const val KERNEL_SU_HOME_URL = "https://kernelsu.org/"'''
+    new = f'''private const val KERNEL_SU_MANAGER_URL =
+    "{KSU_NEXT_MANAGER_URL}"
+private const val KERNEL_SU_MANAGER_PACKAGE = "{KSU_NEXT_MANAGER_PACKAGE}"
+private const val KERNEL_SU_HOME_URL = "{KSU_NEXT_HOME_URL}"'''
+
+    if old not in source:
+        raise RuntimeError("KernelSU Manager constants anchor not found")
+    main_activity.write_text(source.replace(old, new, 1))
+
+    manifest = app / "app/src/main/AndroidManifest.xml"
+    manifest_source = manifest.read_text()
+    old_query = '<package android:name="me.weishu.kernelsu" />'
+    new_query = f'<package android:name="{KSU_NEXT_MANAGER_PACKAGE}" />'
+    if old_query not in manifest_source:
+        raise RuntimeError("KernelSU Manager manifest query anchor not found")
+    manifest.write_text(manifest_source.replace(old_query, new_query, 1))
+
+
 def patch_preview_strings(app: Path) -> None:
     replacements = {
         "values/strings.xml": {
@@ -134,6 +166,9 @@ def patch_preview_strings(app: Path) -> None:
             "phase_loading_ksu": "Loading KernelSU Next with bootstrap root",
             "phase_installed": "KernelSU Next LKM loaded; open Manager to confirm runtime",
             "status_ksu_loading": "Loading KernelSU Next LKM",
+            "status_ksu_active": "KernelSU Next active",
+            "install_tap_manager": "Tap to install KernelSU Next Manager",
+            "install_tap_open_manager": "Tap to open KernelSU Next Manager",
         },
         "values-pt-rBR/strings.xml": {
             "step_ksu_title": "Carregar KernelSU Next",
@@ -141,6 +176,9 @@ def patch_preview_strings(app: Path) -> None:
             "phase_loading_ksu": "Carregando o KernelSU Next com o root bootstrap",
             "phase_installed": "KernelSU Next carregado; abra o Manager para confirmar o ambiente",
             "status_ksu_loading": "Carregando o módulo KernelSU Next",
+            "status_ksu_active": "KernelSU Next ativo",
+            "install_tap_manager": "Toque para instalar o Gerenciador do KernelSU Next",
+            "install_tap_open_manager": "Toque para abrir o Gerenciador do KernelSU Next",
         },
     }
 
@@ -157,8 +195,15 @@ def patch_preview_strings(app: Path) -> None:
                 source,
                 count=1,
             )
-            if count != 1:
-                raise RuntimeError(f"string resource {name} not found in {relative}")
+            if count == 0:
+                closing = "</resources>"
+                if closing not in source:
+                    raise RuntimeError(f"resources closing tag not found in {relative}")
+                source = source.replace(
+                    closing,
+                    f'    <string name="{name}">{value}</string>\n{closing}',
+                    1,
+                )
         path.write_text(source)
 
 
@@ -206,11 +251,13 @@ def main() -> None:
     patch_install_view_model(
         app / "app/src/main/java/dev/busung/s25uroot/InstallViewModel.kt"
     )
+    patch_manager_target(app)
     patch_preview_strings(app)
     patch_app_identity(app)
 
     print(f"KernelSU Next preview pinned to payload commit {payload_sha}")
     print(f"KernelSU Next module SHA-256: {KSU_NEXT_SHA256}")
+    print(f"KernelSU Next Manager package: {KSU_NEXT_MANAGER_PACKAGE}")
 
 
 if __name__ == "__main__":
