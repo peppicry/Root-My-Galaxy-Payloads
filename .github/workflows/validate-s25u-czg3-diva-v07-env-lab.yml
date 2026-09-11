@@ -1,0 +1,57 @@
+name: Validate S25U CZG3 DIVA v0.7 ENV-LAB
+
+on:
+  push:
+    branches:
+      - s25u-czg3-diva-v07-env-lab
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scaffold-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Keep exploit source untouched during phase 0
+        shell: bash
+        run: |
+          set -euxo pipefail
+          BASE=21592b0e5b2d8f32f84e9eef3715f4feb8299c98
+          git cat-file -e "$BASE^{commit}"
+          git diff --exit-code "$BASE" -- src/ Makefile
+
+      - name: Reject accidental v0.6 contamination
+        shell: bash
+        run: |
+          set -euxo pipefail
+          if grep -R -n -E 'DIVA_V06_|v0\.6 sensitive-lab|diva-v0\.6-sensitive-lab' src/ 2>/dev/null; then
+            echo 'v0.6-sensitive-lab markers leaked into v0.7 phase-0 source' >&2
+            exit 1
+          fi
+
+      - name: Validate v0.7 tools and schema
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 -m py_compile tools/diva_v07_parity_guard.py
+          python3 -m json.tool lab-artifacts/v0.7/session-schema.json >/dev/null
+          sh -n tools/diva_v07_env_snapshot.sh
+
+      - name: Validate pinned golden manifest
+        shell: bash
+        run: |
+          set -euxo pipefail
+          grep -Fx 'fe00f7d4680752ccdbd3470f2808630a7f3f0306f490d11f5e81f5c2c92a0e86  cve-2026-43499-app.FULL-DIVA-v0.3-HARDWARE-VERIFIED-BASE.so' \
+            lab-artifacts/v0.7/GOLDEN-v0.3.sha256
+
+      - name: Phase-0 status
+        run: |
+          echo 'v0.7 ENV-LAB scaffold valid.'
+          echo 'Exploit source is still anchored to the clean pre-v0.6 base.'
+          echo 'Golden binary provenance is pinned, but v0.3 source-level reproducibility remains a separate gate.'
