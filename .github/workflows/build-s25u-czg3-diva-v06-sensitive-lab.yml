@@ -1,6 +1,9 @@
 name: Build S25U CZG3 DIVA v0.6 Sensitive Lab
 
 on:
+  push:
+    branches:
+      - s25u-czg3-diva-v06-sensitive-lab
   workflow_dispatch:
     inputs:
       p0_fresh_page_attempts:
@@ -47,7 +50,7 @@ jobs:
       - name: Resolve experiment flags
         shell: bash
         env:
-          P0_FRESH_PAGE_ATTEMPTS: ${{ inputs.p0_fresh_page_attempts }}
+          P0_FRESH_PAGE_ATTEMPTS: ${{ inputs.p0_fresh_page_attempts || '1' }}
         run: |
           set -euxo pipefail
           case "$P0_FRESH_PAGE_ATTEMPTS" in
@@ -61,6 +64,7 @@ jobs:
             FLAGS="$FLAGS -DAPP_REQUIRE_FRESH_P0_SESSION=1 -DAPP_SLIDE_FRESH_PAGE_ATTEMPTS=$P0_FRESH_PAGE_ATTEMPTS -DAPP_P0_REFRESH_ORACLE_EACH_FRESH_PAGE=1"
           fi
           echo "V06_FLAGS=$FLAGS" >> "$GITHUB_ENV"
+          echo "P0_FRESH_PAGE_ATTEMPTS_RESOLVED=$P0_FRESH_PAGE_ATTEMPTS" >> "$GITHUB_ENV"
 
       - name: Build v0.6 payload
         shell: bash
@@ -75,7 +79,7 @@ jobs:
           strings "$P" | grep -F 'pa3q-S938BXXSBCZG3-app-diva-v0.6-sensitive-lab'
           cp "$P" "$OUT/cve-2026-43499-app.FULL-DIVA-EXPERIMENTAL-v0.6.so"
           sha256sum "$OUT/cve-2026-43499-app.FULL-DIVA-EXPERIMENTAL-v0.6.so" | tee "$OUT/DIVA-v0.6-SHA256SUMS.txt"
-          printf 'p0_fresh_page_attempts=%s\nflags=%s\n' '${{ inputs.p0_fresh_page_attempts }}' "$V06_FLAGS" > "$OUT/DIVA-v0.6-build-config.txt"
+          printf 'p0_fresh_page_attempts=%s\nflags=%s\n' "$P0_FRESH_PAGE_ATTEMPTS_RESOLVED" "$V06_FLAGS" > "$OUT/DIVA-v0.6-build-config.txt"
 
       - name: Upload v0.6 lab artifact
         uses: actions/upload-artifact@v4
