@@ -1,0 +1,68 @@
+{
+  "schema": "diva-v0.7-env-lab/1",
+  "version": "0.7.0",
+  "target": {
+    "model": "SM-S938B",
+    "codename": "pa3q",
+    "firmware": "S938BXXSBCZG3"
+  },
+  "allowed_conditions": [
+    "BASELINE",
+    "LIFECYCLE_ONLY",
+    "CLEAR_CACHE_MANUAL",
+    "FORCE_STOP_RELAUNCH_MANUAL",
+    "OTHER"
+  ],
+  "provenance_states": [
+    "UNKNOWN",
+    "EXTERNAL",
+    "PHYSICAL_CONFIRMED"
+  ],
+  "session_fields": [
+    "session_id",
+    "boot_id",
+    "condition",
+    "monotonic_start",
+    "app_pid",
+    "app_starttime",
+    "app_mount_ns",
+    "app_selinux",
+    "app_cpuset",
+    "app_cgroup",
+    "app_cpus_allowed",
+    "shizuku_pid",
+    "shizuku_starttime",
+    "shizuku_mount_ns",
+    "shizuku_selinux",
+    "cache_inode_pre",
+    "cache_inode_post",
+    "cache_files_pre",
+    "cache_files_post",
+    "code_cache_inode_pre",
+    "code_cache_inode_post",
+    "lifecycle_sequence",
+    "freecess_seen",
+    "unfreeze_seen",
+    "compaction_seen",
+    "attempts",
+    "write_windows",
+    "write_hits",
+    "gate_captures",
+    "reclaim_misses",
+    "kaslr_provenance",
+    "max_stage",
+    "root",
+    "ksu"
+  ],
+  "collection_policy": {
+    "sensitive_window": "no new heavy telemetry",
+    "light_metadata": "pre/post only",
+    "slab_vmstat_buddy": "post-run or post-root only",
+    "automatic_interventions": false
+  },
+  "golden": {
+    "name": "cve-2026-43499-app.FULL-DIVA-v0.3-HARDWARE-VERIFIED-BASE.so",
+    "size": 116108,
+    "sha256": "fe00f7d4680752ccdbd3470f2808630a7f3f0306f490d11f5e81f5c2c92a0e86"
+  }
+}
