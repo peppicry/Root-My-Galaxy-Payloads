@@ -1,0 +1,16 @@
+ 12000 lab-artifacts/v0.6/chunks/part-000
+ 12000 lab-artifacts/v0.6/chunks/part-001
+ 12000 lab-artifacts/v0.6/chunks/part-002
+ 12000 lab-artifacts/v0.6/chunks/part-003
+ 12000 lab-artifacts/v0.6/chunks/part-004
+ 12000 lab-artifacts/v0.6/chunks/part-005
+ 12000 lab-artifacts/v0.6/chunks/part-006
+ 12000 lab-artifacts/v0.6/chunks/part-007
+ 12000 lab-artifacts/v0.6/chunks/part-008
+ 12000 lab-artifacts/v0.6/chunks/part-009
+ 12000 lab-artifacts/v0.6/chunks/part-010
+ 12000 lab-artifacts/v0.6/chunks/part-011
+ 12000 lab-artifacts/v0.6/chunks/part-012
+ 12000 lab-artifacts/v0.6/chunks/part-013
+   172 lab-artifacts/v0.6/chunks/part-014
+168172 total
