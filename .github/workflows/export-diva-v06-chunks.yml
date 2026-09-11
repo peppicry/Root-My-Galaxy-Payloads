@@ -1,0 +1,36 @@
+name: Export DIVA v0.6 retrieval chunks
+
+on:
+  push:
+    branches:
+      - s25u-czg3-diva-v06-sensitive-lab
+    paths-ignore:
+      - 'lab-artifacts/v0.6/chunks5/**'
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: s25u-czg3-diva-v06-sensitive-lab
+      - name: Export chunks
+        shell: bash
+        run: |
+          set -euxo pipefail
+          P=lab-artifacts/v0.6/cve-2026-43499-app.FULL-DIVA-EXPERIMENTAL-v0.6.so
+          test -f "$P"
+          mkdir -p lab-artifacts/v0.6/chunks5
+          rm -f lab-artifacts/v0.6/chunks5/part-*
+          base64 -w0 "$P" > /tmp/diva.b64
+          split -b 5000 -d -a 3 /tmp/diva.b64 lab-artifacts/v0.6/chunks5/part-
+          wc -c lab-artifacts/v0.6/chunks5/part-* > lab-artifacts/v0.6/chunks5/SIZES.txt
+          sha256sum "$P" > lab-artifacts/v0.6/chunks5/SHA256.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lab-artifacts/v0.6/chunks5
+          git commit -m 'ci: export DIVA v0.6 retrieval chunks [skip ci]'
+          git push origin HEAD:s25u-czg3-diva-v06-sensitive-lab
