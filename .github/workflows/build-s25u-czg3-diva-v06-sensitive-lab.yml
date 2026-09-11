@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - s25u-czg3-diva-v06-sensitive-lab
+    paths-ignore:
+      - 'lab-artifacts/**'
   workflow_dispatch:
     inputs:
       p0_fresh_page_attempts:
@@ -12,8 +14,12 @@ on:
         default: "1"
         type: string
 
+concurrency:
+  group: diva-v06-sensitive-lab
+  cancel-in-progress: true
+
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -91,3 +97,17 @@ jobs:
             build/pa3q-S938BXXSBCZG3/DIVA-v0.6-build-config.txt
           if-no-files-found: error
           retention-days: 7
+
+      - name: Publish exact lab payload on branch
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p lab-artifacts/v0.6
+          cp build/pa3q-S938BXXSBCZG3/cve-2026-43499-app.FULL-DIVA-EXPERIMENTAL-v0.6.so lab-artifacts/v0.6/
+          cp build/pa3q-S938BXXSBCZG3/DIVA-v0.6-SHA256SUMS.txt lab-artifacts/v0.6/
+          cp build/pa3q-S938BXXSBCZG3/DIVA-v0.6-build-config.txt lab-artifacts/v0.6/
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lab-artifacts/v0.6
+          git commit -m 'ci: publish DIVA v0.6 sensitive-lab payload [skip ci]'
+          git push origin HEAD:s25u-czg3-diva-v06-sensitive-lab
